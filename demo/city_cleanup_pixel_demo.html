@@ -1,0 +1,2878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>《城市清扫队》微缩正交像素可玩 Demo</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background: radial-gradient(circle at 50% 20%, #1d2c4a 0%, #0d1526 65%, #070b14 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Pixel-crisp rendering everywhere */
+    canvas, img.px { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+    /* 9:16 Phone Frame */
+    #app-shell {
+      position: relative;
+      height: min(98vh, 890px);
+      width: min(98vw, calc(min(98vh, 890px) * 9 / 16));
+      aspect-ratio: 9 / 16;
+      background: var(--shell-bg, #1c2c48);
+      border-radius: 22px;
+      border: 3px solid #2b1a10;
+      box-shadow: 0 24px 66px rgba(0,0,0,0.75), 0 0 0 2px #d8a75e;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (max-width: 500px) {
+      #app-shell { width: 100vw; height: 100vh; border-radius: 0; border: none; box-shadow: none; }
+    }
+
+    /* THEME TOKENS: Nordic Morning / Showa Dusk / Indigo Night */
+    #app-shell.theme-nordic {
+      --top-bg: #a7cce8;
+      --wood-hi: #d8a76e; --wood-mid: #b68049; --wood-lo: #8c5c2e; --wood-ink: #4a2e16;
+      --tray-bg: #c9975f; --tray-slot: #9e6e3e; --tray-slot-occ: #fff7e6;
+      --q-bg: #b4824c; --q-col: #f6ebd5; --q-card0: #fffdf6; --q-card1: #e2d1b2; --q-card2: #c9b592;
+      --prop-bg: #9f6f3e; --pill-text: #3a210f;
+    }
+    #app-shell.theme-showa {
+      --top-bg: #584361;
+      --wood-hi: #8a5436; --wood-mid: #633922; --wood-lo: #452414; --wood-ink: #241108;
+      --tray-bg: #5e3722; --tray-slot: #3b2013; --tray-slot-occ: #f7ead1;
+      --q-bg: #462818; --q-col: #ecd9b5; --q-card0: #fdf5e4; --q-card1: #d2bc97; --q-card2: #b39a75;
+      --prop-bg: #3b2113; --pill-text: #ffefc8;
+    }
+    #app-shell.theme-indigo {
+      --top-bg: #17264a;
+      --wood-hi: #70472e; --wood-mid: #4e2f1d; --wood-lo: #331d11; --wood-ink: #1c0f08;
+      --tray-bg: #4b2d1c; --tray-slot: #2c190f; --tray-slot-occ: #f5e7cb;
+      --q-bg: #362014; --q-col: #e5d1ab; --q-card0: #fcf3df; --q-card1: #c7b18c; --q-card2: #a58f6c;
+      --prop-bg: #2a170d; --pill-text: #ffefc8;
+    }
+
+    /* ========== ZONE 1: Compact Pixel Top HUD (7%) ========== */
+    #zone-top {
+      height: 7%; min-height: 42px;
+      padding: 4px 8px;
+      background: var(--top-bg);
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+      border-bottom: 2px solid var(--wood-ink);
+      z-index: 25; flex-shrink: 0;
+      transition: background 0.3s ease;
+    }
+    .px-board {
+      display: flex; align-items: center; gap: 4px;
+      background: linear-gradient(180deg, var(--wood-hi), var(--wood-mid));
+      border: 2px solid var(--wood-ink);
+      box-shadow: inset 0 2px 0 rgba(255,244,214,0.35), 0 2px 0 rgba(0,0,0,0.35);
+      border-radius: 8px; padding: 2px 6px; height: 32px;
+    }
+    .lvl-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 7px; border-radius: 5px;
+      font-size: 11px; font-weight: 900;
+      background: #fff3c4; color: #3a1f0e;
+      border: 1.5px solid var(--wood-ink);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+      white-space: nowrap;
+    }
+    .lamp-stat {
+      display: flex; align-items: center; gap: 3px;
+      font-size: 12px; font-weight: 900; color: var(--pill-text);
+      padding-left: 5px; border-left: 1.5px solid rgba(0,0,0,0.22);
+      white-space: nowrap;
+    }
+    .lamp-stat.pop { transform: scale(1.22); }
+
+    .top-tools {
+      display: flex; align-items: center; gap: 3px;
+      background: rgba(20, 26, 44, 0.42);
+      border: 1.5px solid rgba(255,255,255,0.35);
+      border-radius: 999px; padding: 2px 5px; height: 30px;
+    }
+    .mini-tool {
+      border: none; background: transparent; color: #fff8e6;
+      padding: 2px 5px; height: 24px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 2px;
+      transition: background 0.14s;
+    }
+    .mini-tool:hover { background: rgba(255,255,255,0.2); }
+    .mini-tool.active { background: #fbbf24; color: #381e0c; }
+
+    /* ========== ZONE 2: Micro-Pixel Orthogonal City Battlefield (53%) ========== */
+    #zone-battle {
+      position: relative;
+      height: 53%; width: 100%;
+      flex-shrink: 0; overflow: hidden;
+      background: #233352;
+    }
+    #city-canvas {
+      display: block; width: 100%; height: 100%;
+      cursor: default;
+    }
+    #city-canvas.aiming { cursor: crosshair; }
+
+    /* Four-Category Remaining-Layer Micro Indicator (Doc 01 §6.1) */
+    #remain-bar {
+      position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(24, 18, 16, 0.82);
+      border: 1.5px solid #e5b86e;
+      border-radius: 999px;
+      padding: 2px 10px;
+      z-index: 12; pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    }
+    .rem-chip {
+      display: flex; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 900; color: #fff7e6;
+      transition: transform 0.15s;
+    }
+    .rem-chip.low { color: #fde047; animation: lowBlink 0.9s infinite; }
+    .rem-chip.done { color: #86efac; opacity: 0.78; }
+    @keyframes lowBlink { 0%,100%{opacity:1} 50%{opacity:0.55} }
+    .rem-dot {
+      width: 9px; height: 9px; border-radius: 2px;
+      border: 1px solid rgba(255,255,255,0.8);
+    }
+
+    /* Sprint Auto-Sweep Gold Button (Doc 01 §3.6) */
+    #sprint-btn {
+      position: absolute; bottom: 30px; right: 10px;
+      background: linear-gradient(180deg, #fde047, #f59e0b);
+      border: 2px solid #451a03;
+      box-shadow: 0 0 14px rgba(250, 204, 21, 0.9), 0 3px 0 #451a03;
+      color: #3d1c08; font-size: 12px; font-weight: 900;
+      padding: 5px 11px; border-radius: 999px;
+      cursor: pointer; display: none; z-index: 16;
+      animation: sprintBob 0.75s ease-in-out infinite;
+    }
+    #sprint-btn.show { display: block; }
+    @keyframes sprintBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+
+    /* Aim Banner / Toast */
+    #aim-banner {
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      border: 2px solid #2b140a; border-radius: 999px;
+      padding: 4px 11px; font-size: 11px; font-weight: 900;
+      display: none; align-items: center; gap: 7px; white-space: nowrap; z-index: 20;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+      background: #dc2626; color: #fff;
+    }
+    #aim-banner.show { display: flex; }
+    .banner-x {
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.55);
+      color: #fff; border-radius: 999px; padding: 1px 7px; font-size: 10px; cursor: pointer; font-weight: 800;
+    }
+    #toast-wrap {
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      pointer-events: none; z-index: 18;
+    }
+    .toast-pill {
+      background: rgba(254, 246, 228, 0.96);
+      border: 2px solid #3c2212;
+      color: #3a1f10; font-size: 11px; font-weight: 900;
+      padding: 4px 12px; border-radius: 999px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      white-space: nowrap;
+      animation: toastPop 1.85s ease forwards;
+    }
+    @keyframes toastPop {
+      0%{opacity:0;transform:translateY(-6px)} 12%{opacity:1;transform:translateY(0)}
+      82%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-6px)}
+    }
+
+    /* ========== ZONE 3: 5+1 Pixel Wooden Garage Depot (10.5%) ========== */
+    #zone-garage {
+      height: 10.5%;
+      padding: 5px 8px;
+      background: linear-gradient(180deg, var(--tray-bg), var(--wood-lo));
+      border-top: 3px solid var(--wood-ink);
+      border-bottom: 2.5px solid var(--wood-ink);
+      box-shadow: inset 0 2px 0 rgba(255,236,196,0.32);
+      display: flex; align-items: center;
+      flex-shrink: 0;
+    }
+    #garage-slots {
+      width: 100%; height: 100%;
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px;
+    }
+    .g-slot {
+      position: relative; height: 100%; max-height: 64px;
+      border-radius: 8px;
+      background: var(--tray-slot);
+      border: 2px solid var(--wood-ink);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.42);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: transform 0.14s, box-shadow 0.16s, opacity 0.16s;
+    }
+    .g-slot.extra-locked {
+      background: rgba(0,0,0,0.18);
+      border: 2px dashed rgba(255,232,175,0.75);
+      box-shadow: none; cursor: pointer;
+    }
+    .g-slot.occupied {
+      background: var(--tray-slot-occ);
+      box-shadow: inset 0 1px 0 #fff, 0 2px 0 rgba(0,0,0,0.3);
+    }
+    .g-slot.working {
+      box-shadow: 0 0 0 2px #fbbf24, 0 0 10px rgba(251,191,36,0.65);
+    }
+    .g-slot.vacating {
+      opacity: 0.52;
+      border-style: dashed;
+      background: rgba(255,247,230,0.45);
+    }
+    .g-slot.beast {
+      background: linear-gradient(180deg, #fff4bd, #f5b935);
+      border-color: #7c2d12;
+      box-shadow: 0 0 0 2px #fde047, 0 0 14px rgba(250,180,30,0.9);
+    }
+    .g-slot.warn-last {
+      border-color: #f59e0b;
+      box-shadow: 0 0 10px rgba(245,158,11,0.85);
+      animation: lowBlink 0.8s infinite;
+    }
+    .g-slot.deadlock-shake {
+      border-color: #dc2626 !important;
+      box-shadow: 0 0 12px rgba(220,38,38,0.95) !important;
+      animation: shakeX 0.28s infinite;
+    }
+    @keyframes shakeX { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px)} 75%{transform:translateX(2px)} }
+
+    .g-dot {
+      position: absolute; top: 3px; left: 3px;
+      width: 8px; height: 8px; border-radius: 2px;
+      border: 1.2px solid #2b180e;
+    }
+    .g-quota {
+      position: absolute; bottom: -4px; right: -3px;
+      min-width: 19px; height: 17px; padding: 0 4px; border-radius: 5px;
+      background: #2e190d; border: 1.5px solid #f4c977;
+      color: #fff; font-size: 11px; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .g-slot.beast .g-quota { background: #dc2626; border-color: #fef08a; }
+    .g-tag {
+      position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+      font-size: 9px; font-weight: 900; padding: 0 4px; border-radius: 999px;
+      white-space: nowrap; z-index: 4;
+    }
+    .g-tag.wait { background: #1e3a5f; color: #e0f2fe; border: 1px solid #93c5fd; }
+    .g-tag.beast { background: linear-gradient(90deg, #ea580c, #dc2626); color: #fff; border: 1px solid #fef08a; }
+    .g-tag.vac { background: #15803d; color: #dcfce7; border: 1px solid #86efac; }
+    .truck-bob { animation: bobY 0.3s infinite; }
+    @keyframes bobY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+
+    /* ========== ZONE 4: 4-Column Pixel Parchment Queue (21%) ========== */
+    #zone-queue {
+      height: 21%;
+      padding: 6px 8px 4px;
+      background: var(--q-bg);
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+      flex-shrink: 0;
+    }
+    .q-col {
+      position: relative;
+      background: var(--q-col);
+      border: 2px solid var(--wood-ink);
+      border-radius: 9px;
+      padding: 4px 4px 17px;
+      display: flex; flex-direction: column; gap: 4px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 2px 0 rgba(0,0,0,0.28);
+      overflow: hidden;
+    }
+    .q-empty {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: rgba(82,52,28,0.45); font-size: 11px; font-weight: 800;
+    }
+    .q-foot {
+      position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; font-weight: 900; color: #54321a;
+      white-space: nowrap;
+    }
+    .q-card {
+      position: relative; width: 100%; border-radius: 7px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 2px 5px;
+      border: 1.5px solid var(--wood-ink);
+      transition: transform 0.1s, box-shadow 0.16s;
+    }
+    .q-card.r0 {
+      flex: 1.38; background: var(--q-card0);
+      box-shadow: 0 2px 0 var(--wood-ink);
+      cursor: pointer; z-index: 3;
+    }
+    .q-card.r0:active { transform: translateY(1.5px); box-shadow: none; }
+    .q-card.r0.reach { box-shadow: 0 0 0 2px #f59e0b, 0 0 10px rgba(245,158,11,0.7), 0 2px 0 var(--wood-ink); }
+    .q-card.r0.merge {
+      background: linear-gradient(180deg, #fffce0, #fde047);
+      border-color: #9a3412;
+      animation: mergeGlow 0.8s infinite;
+    }
+    @keyframes mergeGlow {
+      0%,100%{box-shadow:0 0 0 2px #fde047, 0 0 10px rgba(250,204,21,0.85)}
+      50%{box-shadow:0 0 0 2.5px #fff, 0 0 18px rgba(249,115,22,1)}
+    }
+    .q-card.r1 { flex: 0.92; background: var(--q-card1); opacity: 0.86; pointer-events: none; }
+    .q-card.r2 { flex: 0.72; background: var(--q-card2); opacity: 0.68; pointer-events: none; }
+    .q-card.frozen { cursor: not-allowed; }
+    .q-card.deny { animation: shakeX 0.26s; }
+    .merge-pip {
+      position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(90deg, #ea580c, #dc2626);
+      color: #fff; font-size: 9px; font-weight: 900; padding: 0 5px;
+      border-radius: 999px; border: 1px solid #fef08a; white-space: nowrap; z-index: 5;
+    }
+    .q-num {
+      font-size: 13px; font-weight: 900; color: #361e0e;
+      min-width: 20px; text-align: right;
+    }
+    .q-card.r1 .q-num, .q-card.r2 .q-num { font-size: 11px; }
+    .ice-cover {
+      position: absolute; inset: -1px; border-radius: 7px;
+      background: linear-gradient(135deg, rgba(186,230,253,0.82), rgba(56,189,248,0.55), rgba(224,242,254,0.85));
+      border: 1.5px solid #e0f2fe;
+      display: flex; align-items: center; justify-content: flex-end; padding: 0 4px;
+      pointer-events: none; z-index: 4;
+    }
+    .ice-tag {
+      background: #0369a1; color: #fff; font-size: 10px; font-weight: 900;
+      padding: 0 4px; border-radius: 4px; border: 1px solid #bae6fd;
+    }
+    .myst-cover {
+      position: absolute; inset: 0; border-radius: 5px;
+      background: linear-gradient(135deg, #1d3158, #2d487a);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 7px;
+      z-index: 3;
+    }
+    .myst-q { font-size: 15px; font-weight: 900; color: #fde047; }
+
+    /* ========== ZONE 5: 4 Pure-Icon Pixel Prop Medallions (8.5%) ========== */
+    #zone-props {
+      height: 8.5%; min-height: 52px;
+      padding: 4px 14px 5px;
+      background: var(--prop-bg);
+      border-top: 2px solid var(--wood-ink);
+      display: flex; align-items: center; justify-content: space-around;
+      flex-shrink: 0;
+    }
+    .prop-btn {
+      position: relative; width: 46px; height: 46px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 28%, #f8cf76, #d99330 68%, #9e5c16);
+      border: 2.5px solid var(--wood-ink);
+      box-shadow: 0 3px 0 var(--wood-ink), inset 0 2px 0 rgba(255,250,220,0.65);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: transform 0.12s;
+    }
+    .prop-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--wood-ink); }
+    .prop-btn.active { box-shadow: 0 0 0 2.5px #fef08a, 0 0 16px rgba(249,115,22,0.95); transform: scale(1.07); }
+    .prop-btn:disabled { filter: grayscale(0.85) brightness(0.65); cursor: not-allowed; }
+    .prop-cnt {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px;
+      background: #dc2626; border: 1.5px solid #fef3c7;
+      color: #fff; font-size: 10px; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .prop-btn:disabled .prop-cnt { background: #4b5563; }
+
+    /* ========== MODALS ========== */
+    .modal-bg {
+      position: absolute; inset: 0; background: rgba(10,16,32,0.58);
+      display: none; align-items: flex-end; justify-content: center;
+      padding: 14px; z-index: 40; backdrop-filter: blur(2px);
+    }
+    .modal-bg.center { align-items: center; background: rgba(10,16,32,0.72); }
+    .modal-bg.show { display: flex; }
+    .px-modal {
+      width: 100%; max-width: 336px;
+      background: linear-gradient(180deg, #fff9ec, #f0dfc0);
+      border: 3px solid #3c2212;
+      box-shadow: 0 0 0 2px #e8ba6c, 0 16px 38px rgba(0,0,0,0.65);
+      border-radius: 16px; padding: 15px; color: #3a2010; text-align: center;
+    }
+    .m-title { font-size: 17px; font-weight: 900; margin: 0 0 6px; }
+    .m-sub { font-size: 12px; color: #6a462a; margin: 0 0 11px; line-height: 1.5; }
+    .m-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 9px; }
+    .m-btn {
+      border: 2px solid #3c2212; border-radius: 10px; padding: 8px;
+      font-size: 12px; font-weight: 900; cursor: pointer;
+      box-shadow: 0 2px 0 #2b160b;
+    }
+    .m-btn:active { transform: translateY(1.5px); box-shadow: none; }
+    .m-btn.gold { background: linear-gradient(180deg, #fde047, #d97706); color: #3a1d0a; }
+    .m-btn.rain { background: linear-gradient(135deg, #fb7185, #f59e0b, #38bdf8, #a855f7); color: #fff; }
+    .m-btn.fire { background: linear-gradient(180deg, #ef4444, #b91c1c); color: #fff; }
+    .m-btn.sec  { background: rgba(100,66,36,0.12); color: #4a2d18; width: 100%; box-shadow: none; }
+    .m-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+    .stats3 {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+      background: rgba(140,92,46,0.12); border-radius: 10px; padding: 8px; margin-bottom: 11px;
+    }
+    .sv { font-size: 17px; font-weight: 900; color: #b45309; }
+    .sl { font-size: 10px; color: #6e4a2e; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div id="app-shell" class="theme-nordic">
+    <!-- ZONE 1: Top HUD -->
+    <div id="zone-top">
+      <div class="px-board">
+        <span class="lvl-badge" id="lvl-badge">Lv.01 老街钟楼区</span>
+        <div class="lamp-stat" id="lamp-stat"><span>🏮</span><span id="lamp-txt">0/11</span></div>
+      </div>
+
+      <div class="top-tools">
+        <button class="mini-tool" id="btn-theme" title="切换像素氛围色调（晨雪 / 昭和黄昏 / 深靛星夜）">🎨晨雪</button>
+        <button class="mini-tool" id="btn-sound" title="音效开关">🔊</button>
+        <button class="mini-tool" id="btn-restart" title="重开本区">↻</button>
+      </div>
+    </div>
+
+    <!-- ZONE 2: Micro-Pixel Orthogonal City Battlefield -->
+    <div id="zone-battle">
+      <canvas id="city-canvas"></canvas>
+      <div id="aim-banner">
+        <span>🔥 点选雪块/垃圾/冰门投放 3×3 融雪弹</span>
+        <button class="banner-x" id="aim-cancel">取消</button>
+      </div>
+      <div id="toast-wrap"></div>
+      <button id="sprint-btn">⚡ 一键加速收尾</button>
+      <div id="remain-bar"></div>
+    </div>
+
+    <!-- ZONE 3: 5+1 Wooden Garage Depot -->
+    <div id="zone-garage">
+      <div id="garage-slots"></div>
+    </div>
+
+    <!-- ZONE 4: 4-Column 3-Row Queue -->
+    <div id="zone-queue"></div>
+
+    <!-- ZONE 5: 4 Pure-Icon Prop Medallions -->
+    <div id="zone-props">
+      <button class="prop-btn" id="prop-wildcard" title="万能车：不占车位，4并发往返清8层任意可达障碍">
+        <canvas class="px" id="ico-wc" width="28" height="24" style="width:30px;height:26px;"></canvas>
+        <span class="prop-cnt" id="cnt-wc">3</span>
+      </button>
+      <button class="prop-btn" id="prop-expand" title="车位扩容 P+1：开启第6个临时车位">
+        <span style="font-size:16px;font-weight:900;color:#1e3a8a;text-shadow:0 1px 0 #fef08a;">P+</span>
+        <span class="prop-cnt" id="cnt-ex">1</span>
+      </button>
+      <button class="prop-btn" id="prop-shuffle" title="热风洗牌：重排队列并将救命车优先调至前排">
+        <span style="font-size:19px;">🌪️</span>
+        <span class="prop-cnt" id="cnt-sh">3</span>
+      </button>
+      <button class="prop-btn" id="prop-flame" title="火焰融雪弹：手动点选战场任意处，无视路网炸净3×3双层区域">
+        <span style="font-size:19px;">🔥</span>
+        <span class="prop-cnt" id="cnt-fl">3</span>
+      </button>
+    </div>
+
+    <!-- RESCUE MODAL -->
+    <div class="modal-bg" id="modal-rescue">
+      <div class="px-modal">
+        <h3 class="m-title">🚧 街道堵车啦！</h3>
+        <p class="m-sub">车库全员「待通」且无在途车辆。观察上方街区选道具破局：</p>
+        <div class="m-grid">
+          <button class="m-btn gold" id="res-ex">🅿️ 开启 P+1</button>
+          <button class="m-btn rain" id="res-wc">🌈 召唤万能车</button>
+          <button class="m-btn fire" id="res-fl">🔥 火焰融雪弹</button>
+          <button class="m-btn gold" id="res-sh">🌪️ 热风洗牌</button>
+        </div>
+        <button class="m-btn sec" id="res-re">↻ 重新挑战本关</button>
+      </div>
+    </div>
+
+    <!-- WIN MODAL -->
+    <div class="modal-bg center" id="modal-win">
+      <div class="px-modal">
+        <div style="font-size:28px;">🏮🏙️✨</div>
+        <h3 class="m-title" id="win-title">街区暖灯全亮！</h3>
+        <p class="m-sub" id="win-sub">街道洁净如新，镜头即将右滑前往下一段城市长卷</p>
+        <div class="stats3">
+          <div><div class="sv" id="st-lamps">11/11</div><div class="sl">点亮暖灯</div></div>
+          <div><div class="sv" id="st-merges">0</div><div class="sl">三合巨兽</div></div>
+          <div><div class="sv" id="st-time">01:20</div><div class="sl">通关用时</div></div>
+        </div>
+        <div style="display:flex;gap:7px;">
+          <button class="m-btn sec" id="win-re" style="flex:1;">再玩一次</button>
+          <button class="m-btn gold" id="win-next" style="flex:1.4;">向右滑进下一区 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* =========================================================
+     1. PIXEL THEMES (Live-switchable: Nordic Morning / Showa Dusk / Indigo Night)
+  ========================================================= */
+  const THEMES = [
+    {
+      id: 'nordic', label: '🎨晨雪', css: 'theme-nordic',
+      sky: '#b5d6ee', roadBase: '#8f99a8', roadAlt: '#848e9d', roadWarm: [72, 54, 18],
+      snowBg: '#dcecf7', curb: '#6b7788', shadowMask: 'rgba(65, 92, 130, 0.28)',
+      lampHalo: 'rgba(255, 208, 102, 0.52)', snowFlake: 'rgba(255,255,255,0.85)'
+    },
+    {
+      id: 'showa', label: '🎨昭和', css: 'theme-showa',
+      sky: '#5d4766', roadBase: '#6f6770', roadAlt: '#645c66', roadWarm: [85, 52, 12],
+      snowBg: '#cfd5e6', curb: '#4b434d', shadowMask: 'rgba(42, 26, 52, 0.36)',
+      lampHalo: 'rgba(255, 190, 88, 0.68)', snowFlake: 'rgba(255,244,230,0.75)'
+    },
+    {
+      id: 'indigo', label: '🎨星夜', css: 'theme-indigo',
+      sky: '#18284d', roadBase: '#4b556b', roadAlt: '#434c61', roadWarm: [96, 62, 14],
+      snowBg: '#273758', curb: '#2f384c', shadowMask: 'rgba(12, 20, 46, 0.42)',
+      lampHalo: 'rgba(255, 214, 105, 0.80)', snowFlake: 'rgba(255,255,255,0.72)'
+    }
+  ];
+  let themeIdx = 0;
+
+  /* =========================================================
+     2. OBSTACLE & VEHICLE CATALOG (Snow + Late-game Trash!)
+  ========================================================= */
+  const CATS = {
+    0: { name: '白松雪', short: '白', fill: '#f5f8fc', hi: '#ffffff', shade: '#b7c8de', ink: '#4d6078', truck: '#f95634', truckDark: '#b91c1c', kind: 'plow' },
+    1: { name: '蓝冻冰', short: '冰', fill: '#5ac8fa', hi: '#d6f4ff', shade: '#1f88c9', ink: '#1d4f78', truck: '#0ea5e9', truckDark: '#0369a1', kind: 'plow' },
+    2: { name: '紫深霜', short: '霜', fill: '#a56ef2', hi: '#ebd8ff', shade: '#6834b5', ink: '#3c1e6e', truck: '#8b5cf6', truckDark: '#5b21b6', kind: 'plow' },
+    3: { name: '棕雪泥', short: '泥', fill: '#d48a38', hi: '#fce0a8', shade: '#8f5014', ink: '#4d2a0c', truck: '#b45309', truckDark: '#78350f', kind: 'grab' },
+    4: { name: '断枝堆', short: '枝', fill: '#5b8c2a', hi: '#a3d165', shade: '#365a15', ink: '#22380e', truck: '#22a055', truckDark: '#14532d', kind: 'sweep' },
+    5: { name: '废纸箱', short: '箱', fill: '#e0485a', hi: '#fda4af', shade: '#9e1c2f', ink: '#57121c', truck: '#dc2626', truckDark: '#7f1d1d', kind: 'trash' },
+  };
+
+  const CFG = {
+    NORMAL_CD: 0.22,
+    BEAST_CD: 0.14,
+    NORMAL_MAX: 2,
+    BEAST_MAX: 4,
+    NORMAL_SPD: 9.8,
+    BEAST_SPD: 14.7,
+    RETURN_MUL: 1.45,
+    VACATE_RETURN_MUL: 1.72,
+    SPRINT_SPD_MUL: 1.6,
+    WC_QUOTA: 8,
+    WC_MAX: 4,
+    WC_CD: 0.14,
+    DEADLOCK_BUF: 1.2,
+  };
+
+  /* =========================================================
+     3. THREE CONTIGUOUS DFS-VERIFIED 17x13 PIXEL CITY DISTRICTS
+  ========================================================= */
+  const DISTRICTS = [
+    {
+      id: 1, name: '老街钟楼区', subtitle: '17×13 正交微缩老街 · 暖气总阀与双层冻冰',
+      cols: 17, rows: 13, categories: [0, 1, 2, 3],
+      buildings: [
+        { id: 'ramen',    kind: 'ramen',    name: '拉面馆',   r: 0, c: 1,  w: 3, h: 2, triggers: [[2,1],[2,2],[2,3]], need: 2 },
+        { id: 'clock',    kind: 'clock',    name: '老钟楼',   r: 0, c: 7,  w: 3, h: 2, triggers: [[2,7],[2,8],[2,9]], need: 2 },
+        { id: 'bakery',   kind: 'bakery',   name: '面包房',   r: 0, c: 13, w: 3, h: 2, triggers: [[2,13],[2,14],[2,15]], need: 2 },
+        { id: 'cafe',     kind: 'cafe',     name: '街角咖啡', r: 4, c: 1,  w: 2, h: 2, triggers: [[6,1],[6,2],[4,3],[5,3]], need: 2 },
+        { id: 'post',     kind: 'post',     name: '红砖邮局', r: 4, c: 4,  w: 2, h: 2, triggers: [[6,4],[6,5],[4,6],[5,6]], need: 2 },
+        { id: 'fountain', kind: 'fountain', name: '小喷泉',   r: 4, c: 11, w: 2, h: 2, triggers: [[6,11],[6,12],[4,10],[5,10]], need: 2 },
+        { id: 'park',     kind: 'park',     name: '雪松公园', r: 4, c: 14, w: 2, h: 2, triggers: [[6,14],[6,15],[4,13],[5,13]], need: 2 },
+        { id: 'bath',     kind: 'bath',     name: '木造汤屋', r: 8, c: 1,  w: 2, h: 2, triggers: [[10,1],[10,2],[8,3],[9,3]], need: 2 },
+        { id: 'shrine',   kind: 'shrine',   name: '冬日小祠', r: 8, c: 11, w: 2, h: 2, triggers: [[10,11],[10,12],[8,10],[9,10]], need: 2 },
+        { id: 'mart',     kind: 'mart',     name: '便利店',   r: 8, c: 14, w: 2, h: 2, triggers: [[10,14],[10,15],[8,13],[9,13]], need: 2 },
+      ],
+      rawMap: [
+        '2  B  B  B  2  2  1  B  B  B  1  2  2  B  B  B  2',
+        '2  B  B  B  2  1  1  B  B  B  1  1  2  B  B  B  2',
+        '2  2  2  2  1  1  1  2  2  2  1  1  1  2  2  2  2',
+        '1  1  1  1  1  1  1  2  2  2  1  1  1  1  1  1  1',
+        '1  B  B  G  B  B  1  11 1  11 1  B  B  G  B  B  1',
+        '3  B  B  3  B  B  1  1  1  1  1  B  B  3  B  B  3',
+        '3  3  3  3  3  3  1  1  1  1  1  3  3  3  3  3  3',
+        '3  0  0  0  3  3  0  1  1  1  0  3  3  0  0  0  3',
+        '0  B  B  0  0  0  0  0  .  0  0  B  B  0  B  B  0',
+        '0  B  B  0  0  0  0  0  0  0  0  B  B  0  B  B  0',
+        '0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0',
+        '0  0  3  0  0  0  0  0  .  0  0  0  0  0  3  0  0',
+        '.  0  0  0  0  0  0  .  .  .  0  0  0  0  0  0  .',
+      ],
+      valves: [{ id: 'v1', r: 6, c: 8, gates: [[4, 3], [4, 13]] }],
+      lamps: [[2,0],[2,6],[2,10],[2,16],[6,3],[6,13],[10,3],[10,8],[10,13],[12,2],[12,14]],
+      columns: [
+        [{ color: 1, quota: 10 }, { color: 0, quota: 12 }, { color: 2, quota: 6, ice: 2 }, { color: 3, quota: 6, mystery: true }, { color: 1, quota: 10 }],
+        [{ color: 0, quota: 12 }, { color: 2, quota: 6 }, { color: 1, quota: 10 }, { color: 0, quota: 12, mystery: true }, { color: 2, quota: 6 }],
+        [{ color: 0, quota: 12 }, { color: 3, quota: 6 }, { color: 2, quota: 6, ice: 2 }, { color: 1, quota: 10 }, { color: 3, quota: 6 }],
+        [{ color: 0, quota: 12 }, { color: 3, quota: 6 }, { color: 0, quota: 12, mystery: true }, { color: 1, quota: 8 }],
+      ]
+    },
+    {
+      id: 2, name: '运河汤屋区', subtitle: '17×13 运河石桥 · 双层紫霜与三合破局',
+      cols: 17, rows: 13, categories: [0, 1, 2, 3],
+      buildings: [
+        { id: 'tea',      kind: 'ramen',    name: '和风茶屋', r: 0, c: 1,  w: 3, h: 2, triggers: [[2,1],[2,2],[2,3]], need: 2 },
+        { id: 'fountain', kind: 'fountain', name: '喷泉广场', r: 0, c: 7,  w: 3, h: 2, triggers: [[2,7],[2,8],[2,9]], need: 2 },
+        { id: 'post',     kind: 'post',     name: '红砖邮局', r: 0, c: 13, w: 3, h: 2, triggers: [[2,13],[2,14],[2,15]], need: 2 },
+        { id: 'shrine',   kind: 'shrine',   name: '鸟居庭院', r: 4, c: 1,  w: 2, h: 2, triggers: [[6,1],[6,2],[4,3],[5,3]], need: 2 },
+        { id: 'cafe',     kind: 'cafe',     name: '桥边咖啡', r: 4, c: 4,  w: 2, h: 2, triggers: [[6,4],[6,5],[4,6],[5,6]], need: 2 },
+        { id: 'book',     kind: 'bakery',   name: '街角书店', r: 4, c: 11, w: 2, h: 2, triggers: [[6,11],[6,12],[4,10],[5,10]], need: 2 },
+        { id: 'park',     kind: 'park',     name: '松林公园', r: 4, c: 14, w: 2, h: 2, triggers: [[6,14],[6,15],[4,13],[5,13]], need: 2 },
+        { id: 'inn',      kind: 'bath',     name: '温泉旅馆', r: 8, c: 1,  w: 2, h: 2, triggers: [[10,1],[10,2],[8,3],[9,3]], need: 2 },
+        { id: 'clock2',   kind: 'clock',    name: '运河钟塔', r: 8, c: 4,  w: 2, h: 2, triggers: [[10,4],[10,5],[8,6],[9,6]], need: 2 },
+        { id: 'mart2',    kind: 'mart',     name: '河岸小铺', r: 8, c: 14, w: 2, h: 2, triggers: [[10,14],[10,15],[8,13],[9,13]], need: 2 },
+      ],
+      rawMap: [
+        '2  B  B  B  2  2  2  B  B  B  2  2  2  B  B  B  2',
+        '2  B  B  B  2  2  1  B  B  B  1  2  2  B  B  B  2',
+        '2  2  2  2  1  22 2  2  2  2  2  22 1  2  2  2  2',
+        '1  1  1  1  1  1  1  2  2  2  1  1  1  1  1  1  1',
+        '1  B  B  G  B  B  1  11 22 11 1  B  B  G  B  B  1',
+        '3  B  B  3  B  B  1  1  1  1  1  B  B  3  B  B  3',
+        '3  3  3  3  3  3  01 1  1  1  01 3  3  3  3  3  3',
+        '3  0  0  3  0  3  0  1  1  0  0  3  0  3  0  0  3',
+        '0  B  B  0  B  B  0  03 0  03 0  0  0  0  B  B  0',
+        '0  B  B  0  B  B  0  0  0  0  0  0  0  0  B  B  0',
+        '0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0',
+        '0  3  0  0  0  0  0  0  .  0  0  0  0  0  0  3  0',
+        '.  0  0  0  0  0  0  .  .  .  0  0  0  0  0  0  .',
+      ],
+      valves: [{ id: 'v1', r: 6, c: 8, gates: [[4, 3], [4, 13]] }],
+      lamps: [[2,0],[2,5],[2,11],[2,16],[6,3],[6,13],[10,3],[10,8],[10,13],[12,2],[12,14]],
+      columns: [
+        [{ color: 2, quota: 10 }, { color: 1, quota: 10 }, { color: 0, quota: 12 }, { color: 3, quota: 8, mystery: true }, { color: 0, quota: 10 }],
+        [{ color: 2, quota: 8 },  { color: 0, quota: 12 }, { color: 1, quota: 10, ice: 2 }, { color: 3, quota: 6, mystery: true }, { color: 0, quota: 10 }],
+        [{ color: 1, quota: 8 },  { color: 2, quota: 8, ice: 2 }, { color: 3, quota: 6 }, { color: 0, quota: 12, mystery: true }, { color: 2, quota: 10 }],
+        [{ color: 0, quota: 10 }, { color: 3, quota: 6 }, { color: 0, quota: 10 }, { color: 1, quota: 10, ice: 2 }],
+      ]
+    },
+    {
+      id: 3, name: '站前集市清运区', subtitle: '17×13 除雪+垃圾混编 · 雪下藏纸箱',
+      cols: 17, rows: 13, categories: [0, 1, 4, 5],
+      buildings: [
+        { id: 'sweet',    kind: 'bakery',   name: '甜品工坊',   r: 0, c: 1,  w: 3, h: 2, triggers: [[2,1],[2,2],[2,3]], need: 2 },
+        { id: 'station',  kind: 'station',  name: '雪国车站',   r: 0, c: 6,  w: 5, h: 2, triggers: [[2,6],[2,7],[2,8],[2,9],[2,10]], need: 2 },
+        { id: 'stall',    kind: 'ramen',    name: '夜市灯笼摊', r: 0, c: 13, w: 3, h: 2, triggers: [[2,13],[2,14],[2,15]], need: 2 },
+        { id: 'park2',    kind: 'park',     name: '站前松林',   r: 4, c: 1,  w: 2, h: 2, triggers: [[6,1],[6,2],[4,3],[5,3]], need: 2 },
+        { id: 'fount2',   kind: 'fountain', name: '站前喷泉',   r: 4, c: 4,  w: 2, h: 2, triggers: [[6,4],[6,5],[4,6],[5,6]], need: 2 },
+        { id: 'mart2',    kind: 'mart',     name: '集市百货',   r: 4, c: 11, w: 2, h: 2, triggers: [[6,11],[6,12],[4,10],[5,10]], need: 2 },
+        { id: 'clock3',   kind: 'clock',    name: '站前钟塔',   r: 4, c: 14, w: 2, h: 2, triggers: [[6,14],[6,15],[4,13],[5,13]], need: 2 },
+        { id: 'cafe2',    kind: 'cafe',     name: '热红酒馆',   r: 8, c: 1,  w: 2, h: 2, triggers: [[10,1],[10,2],[8,3],[9,3]], need: 2 },
+        { id: 'bath2',    kind: 'bath',     name: '暖泉澡堂',   r: 8, c: 11, w: 2, h: 2, triggers: [[10,11],[10,12],[8,10],[9,10]], need: 2 },
+        { id: 'post2',    kind: 'post',     name: '快递驿站',   r: 8, c: 14, w: 2, h: 2, triggers: [[10,14],[10,15],[8,13],[9,13]], need: 2 },
+      ],
+      rawMap: [
+        '2  B  B  B  2  1  B  B  B  B  B  1  2  B  B  B  2',
+        '2  B  B  B  2  1  B  B  B  B  B  1  2  B  B  B  2',
+        '2  2  2  2  2  1  3  3  33 3  3  1  2  2  2  2  2',
+        '1  1  2  2  1  1  1  3  33 3  1  1  1  2  2  1  1',
+        '1  B  B  G  B  B  1  11 1  11 1  B  B  G  B  B  1',
+        '3  B  B  3  B  B  03 1  1  1  03 B  B  3  B  B  3',
+        '3  3  03 3  3  3  1  1  1  1  1  3  3  3  03 3  3',
+        '0  0  0  3  0  3  0  0  1  0  0  3  0  3  0  0  0',
+        '0  B  B  0  0  0  0  02 0  02 0  B  B  0  B  B  0',
+        '0  B  B  0  0  0  0  0  0  0  0  B  B  0  B  B  0',
+        '0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0',
+        '0  0  3  0  0  0  0  .  .  0  0  0  0  0  3  0  0',
+        '.  0  0  0  0  0  0  .  .  .  0  0  0  0  0  0  .',
+      ],
+      valves: [{ id: 'v1', r: 6, c: 8, gates: [[4, 3], [4, 13]] }],
+      lamps: [[2,0],[2,5],[2,11],[2,16],[6,3],[6,13],[10,3],[10,8],[10,13],[12,2],[12,14]],
+      columns: [
+        [{ color: 2, quota: 6 },  { color: 1, quota: 10 }, { color: 3, quota: 8 }, { color: 0, quota: 12, ice: 2 }, { color: 1, quota: 8 }],
+        [{ color: 1, quota: 8 },  { color: 2, quota: 6 },  { color: 0, quota: 12 }, { color: 3, quota: 10, mystery: true }, { color: 0, quota: 12 }],
+        [{ color: 3, quota: 8 },  { color: 2, quota: 6, ice: 2 }, { color: 0, quota: 12 }, { color: 1, quota: 8, mystery: true }, { color: 2, quota: 6 }],
+        [{ color: 0, quota: 12 }, { color: 0, quota: 10 }, { color: 3, quota: 8 }, { color: 0, quota: 10, mystery: true }],
+      ]
+    }
+  ];
+
+  /* =========================================================
+     4. PROCEDURAL CRISP PIXEL SPRITE GENERATOR (Vehicles & UI Icons)
+  ========================================================= */
+  const spriteCache = {};
+
+  // Draw crisp 16x14 pixel side-view truck for UI cards / garage / left-right driving
+  function createSideTruckCanvas(catId, isBeast = false, isWildcard = false) {
+    const key = `side_${catId}_${isBeast ? 'B' : ''}_${isWildcard ? 'W' : ''}`;
+    if (spriteCache[key]) return spriteCache[key];
+    const c = document.createElement('canvas');
+    c.width = 18; c.height = 14;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+
+    const cat = CATS[catId] || CATS[0];
+    const body = isBeast ? '#f59e0b' : cat.truck;
+    const dark = isBeast ? '#b45309' : cat.truckDark;
+    const ink = '#24140c';
+    const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+
+    // Outline silhouette
+    px(1, 5, 15, 6, ink);
+    px(4, 2, 8, 4, ink);
+    // Main chassis
+    if (isWildcard) {
+      px(2, 6, 3, 4, '#fb7185'); px(5, 6, 3, 4, '#fbbf24');
+      px(8, 6, 3, 4, '#38bdf8'); px(11, 6, 4, 4, '#c084fc');
+    } else {
+      px(2, 6, 13, 4, body);
+      px(2, 8, 13, 2, dark);
+    }
+    // Cab & window
+    px(5, 3, 6, 3, isWildcard ? '#fbbf24' : body);
+    px(6, 4, 4, 2, '#e0f7ff');
+    // Specific vehicle attachments!
+    if (isBeast) {
+      // Golden dragon crest & exhaust fire!
+      px(1, 2, 2, 2, '#ef4444'); px(2, 1, 2, 2, '#fde047');
+      px(6, 1, 5, 2, '#fde047'); // dragon ridge
+      px(15, 4, 2, 7, '#fde047'); px(14, 5, 1, 5, '#b45309'); // golden plow blade
+    } else if (cat.kind === 'sweep') {
+      // Green rotary brush in front!
+      px(14, 7, 3, 4, '#facc15'); px(15, 8, 2, 2, '#854d0e');
+      px(2, 4, 3, 2, '#bbf7d0');
+    } else if (cat.kind === 'trash') {
+      // Boxy compactor rear!
+      px(2, 3, 6, 4, body); px(3, 4, 4, 2, '#fca5a5');
+      px(11, 3, 4, 4, body); px(12, 4, 2, 2, '#e0f7ff');
+    } else {
+      // Snowplow / grabber front blade
+      px(14, 5, 3, 6, ink);
+      px(15, 6, 2, 4, cat.kind === 'grab' ? '#d97706' : '#e2e8f0');
+      // Roof beacon
+      px(7, 1, 2, 1, cat.fill);
+    }
+    // Headlight
+    px(14, 7, 1, 1, '#fef08a');
+    // Wheels
+    px(4, 10, 3, 3, ink); px(5, 11, 1, 1, '#cbd5e1');
+    px(11, 10, 3, 3, ink); px(12, 11, 1, 1, '#cbd5e1');
+
+    spriteCache[key] = c;
+    return c;
+  }
+
+  // Draw crisp 14x16 pixel UP or DOWN facing truck for true 4-direction driving!
+  function createVertTruckCanvas(catId, dir, isBeast = false, isWildcard = false) {
+    const key = `v_${dir}_${catId}_${isBeast ? 'B' : ''}_${isWildcard ? 'W' : ''}`;
+    if (spriteCache[key]) return spriteCache[key];
+    const c = document.createElement('canvas');
+    c.width = 14; c.height = 16;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const cat = CATS[catId] || CATS[0];
+    const body = isBeast ? '#f59e0b' : cat.truck;
+    const dark = isBeast ? '#b45309' : cat.truckDark;
+    const ink = '#24140c';
+    const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+
+    // Chassis box
+    px(3, 2, 8, 12, ink);
+    if (isWildcard) {
+      px(4, 3, 6, 2, '#fb7185'); px(4, 5, 6, 3, '#fbbf24');
+      px(4, 8, 6, 2, '#38bdf8'); px(4, 10, 6, 3, '#c084fc');
+    } else {
+      px(4, 3, 6, 10, body);
+      px(4, 11, 6, 2, dark);
+    }
+    // Wheels peeking sides
+    px(2, 4, 1, 3, ink); px(11, 4, 1, 3, ink);
+    px(2, 10, 1, 3, ink); px(11, 10, 1, 3, ink);
+
+    if (dir === 'up') {
+      // Plow blade at top (y=0..2), windshield near top
+      px(2, 0, 10, 3, ink);
+      px(3, 1, 8, 1, isBeast ? '#fde047' : (cat.kind === 'sweep' ? '#facc15' : '#e2e8f0'));
+      px(5, 4, 4, 2, '#e0f7ff');
+      px(4, 3, 1, 1, '#fef08a'); px(9, 3, 1, 1, '#fef08a'); // headlights
+      if (isBeast) { px(6, 7, 2, 4, '#fde047'); px(6, 13, 2, 2, '#ef4444'); }
+    } else {
+      // Plow blade at bottom (y=13..15)
+      px(2, 13, 10, 3, ink);
+      px(3, 14, 8, 1, isBeast ? '#fde047' : (cat.kind === 'sweep' ? '#facc15' : '#e2e8f0'));
+      px(5, 9, 4, 2, '#e0f7ff');
+      px(4, 12, 1, 1, '#fef08a'); px(9, 12, 1, 1, '#fef08a'); // headlights
+      if (isBeast) { px(6, 5, 2, 4, '#fde047'); px(6, 1, 2, 2, '#ef4444'); }
+    }
+    spriteCache[key] = c;
+    return c;
+  }
+
+  function truckDataUrl(catId, isBeast = false, isWildcard = false) {
+    const key = `url_${catId}_${isBeast ? 'B' : ''}_${isWildcard ? 'W' : ''}`;
+    if (!spriteCache[key]) spriteCache[key] = createSideTruckCanvas(catId, isBeast, isWildcard).toDataURL();
+    return spriteCache[key];
+  }
+
+  // Paint wildcard icon on bottom prop button
+  (function initWildcardBtn() {
+    const ic = document.getElementById('ico-wc');
+    const g = ic.getContext('2d'); g.imageSmoothingEnabled = false;
+    g.drawImage(createSideTruckCanvas(0, false, true), 5, 5, 18, 14);
+  })();
+
+  /* =========================================================
+     5. PROCEDURAL COZY CHIPTUNE + WINTER WEB AUDIO ENGINE
+  ========================================================= */
+  class SoundEngine {
+    constructor() { this.ctx = null; this.muted = false; this.lampIdx = 0; }
+    unlock() {
+      if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    }
+    _noise(dur = 0.12, pink = false) {
+      const sr = this.ctx.sampleRate, len = Math.floor(sr * dur), buf = this.ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+      let b0=0,b1=0,b2=0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        if (pink) { b0=0.997*b0+w*0.029; b1=0.985*b1+w*0.032; b2=0.95*b2+w*0.048; d[i]=(b0+b1+b2+w*0.18)*1.3; }
+        else d[i] = w;
+      }
+      return buf;
+    }
+    tone(freq, dur = 0.08, type = 'triangle', vol = 0.08, delay = 0) {
+      if (this.muted) return; this.unlock(); if (!this.ctx) return;
+      const t = this.ctx.currentTime + delay;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + dur + 0.01);
+    }
+    playClear(catId, pierce = false) {
+      if (this.muted) return; this.unlock(); if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const src = this.ctx.createBufferSource(); src.buffer = this._noise(0.1, catId === 3 || catId === 5);
+      const flt = this.ctx.createBiquadFilter(); flt.type = 'bandpass';
+      flt.frequency.value = [1050, 2400, 1650, 680, 1200, 820][catId] || 1100;
+      const g = this.ctx.createGain(); g.gain.setValueAtTime(0.11, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      src.connect(flt).connect(g).connect(this.ctx.destination); src.start(now);
+      if (pierce) { this.tone(880, 0.1, 'sawtooth', 0.07); this.tone(1320, 0.14, 'triangle', 0.08, 0.04); }
+      else if (catId === 1) this.tone(1480 + Math.random()*200, 0.06, 'triangle', 0.05);
+    }
+    playLamp() {
+      const sc = [1046.5, 1174.7, 1318.5, 1568, 1760, 2093];
+      this.tone(sc[this.lampIdx++ % sc.length], 0.32, 'sine', 0.11);
+    }
+    playBuilding() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.09, i * 0.055)); }
+    playMerge() {
+      this.tone(110, 0.35, 'sawtooth', 0.09);
+      [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.28, 'triangle', 0.1, i * 0.05));
+    }
+    playValve() {
+      if (this.muted) return; this.unlock(); if (!this.ctx) return;
+      const now = this.ctx.currentTime, src = this.ctx.createBufferSource(); src.buffer = this._noise(0.45, true);
+      const g = this.ctx.createGain(); g.gain.setValueAtTime(0.22, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      src.connect(g).connect(this.ctx.destination); src.start(now);
+    }
+    playTap() { this.tone(520, 0.055, 'sine', 0.08); }
+    playDock() { this.tone(410, 0.04, 'sine', 0.03); }
+    playIce() { this.tone(1750, 0.05, 'square', 0.05); }
+    playWarn() { this.tone(110, 0.12, 'sine', 0.09, 0); this.tone(155.5, 0.12, 'sine', 0.09, 0.13); }
+    playBoom() {
+      if (this.muted) return; this.unlock(); if (!this.ctx) return;
+      const now = this.ctx.currentTime, src = this.ctx.createBufferSource(); src.buffer = this._noise(0.32, true);
+      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 620;
+      const g = this.ctx.createGain(); g.gain.setValueAtTime(0.28, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      src.connect(lp).connect(g).connect(this.ctx.destination); src.start(now);
+    }
+    playWin() { [523,659,784,1046,880,1046,1318].forEach((f,i)=>this.tone(f,0.34,'sine',0.11,i*0.09)); }
+  }
+  const sfx = new SoundEngine();
+
+  /* =========================================================
+     6. WORLD STATE (3 Contiguous Districts in Seamless Horizontal City Scroll!)
+  ========================================================= */
+  let districtStates = [];
+  let activeIdx = 0;
+  let camX = 0, targetCamX = 0; // Horizontal scroll camera in district-width units (only slides on level clear)
+
+  let nextSlotId = 1, nextUnitId = 1;
+  let animTime = 0, lastFrame = performance.now();
+  let hoverTile = null;
+
+  const canvas = document.getElementById('city-canvas');
+  const ctx = canvas.getContext('2d');
+  let viewW = 360, viewH = 380, dpr = 1;
+  let tileSize = 20, gridOX = 8, gridOY = 8, distStrideW = 360;
+
+  const flakes = Array.from({ length: 48 }, () => ({
+    x: Math.random(), y: Math.random(), r: Math.random() < 0.6 ? 1 : 2,
+    vx: -0.01 + Math.random() * 0.02, vy: 0.03 + Math.random() * 0.05
+  }));
+
+  function buildDistrictState(def) {
+    const tokens = def.rawMap.map(line => line.trim().split(/\s+/));
+    const grid = [];
+    for (let r = 0; r < def.rows; r++) {
+      const row = [];
+      for (let c = 0; c < def.cols; c++) {
+        const tok = tokens[r][c];
+        let type = 'empty', layers = [];
+        if (tok === 'B') type = 'bld';
+        else if (tok === 'G') type = 'gate';
+        else if (/^[0-3]+$/.test(tok)) {
+          type = 'obs';
+          layers = tok.split('').map(Number); // local slot 0..3
+        }
+        row.push({
+          r, c, type, layers,
+          reservedBy: null, reachable: false, bfsDist: -1, parent: null,
+          revealPop: 0, lamp: false, lampLit: false, valveId: null
+        });
+      }
+      grid.push(row);
+    }
+
+    const valves = def.valves.map(v => ({
+      id: v.id, r: v.r, c: v.c,
+      gates: v.gates.map(([gr, gc]) => ({ r: gr, c: gc })),
+      triggered: false
+    }));
+    for (const v of valves) grid[v.r][v.c].valveId = v.id;
+
+    for (const [lr, lc] of def.lamps) {
+      grid[lr][lc].lamp = true;
+      grid[lr][lc].lampLit = (grid[lr][lc].type !== 'obs');
+    }
+
+    const buildings = def.buildings.map(b => ({ ...b, lit: false, smokeCd: 0 }));
+    const columns = def.columns.map(col => col.map((card, i) => ({
+      id: Math.random().toString(36).slice(2),
+      color: card.color, quota: card.quota, ice: card.ice || 0,
+      mystery: !!card.mystery && i > 0
+    })));
+
+    const st = {
+      def, grid, valves, buildings, columns,
+      garage: [], // { id, color, unallocated, outbound, returning, isBeast, cd, waiting, vacating }
+      maxSlots: 5, expanded: false,
+      units: [],  // ZERO cars on road at start!
+      wcPool: { quota: 0, outbound: 0, returning: 0, cd: 0 },
+      particles: [], floats: [], fireballs: [], residents: [],
+      props: { wc: 3, ex: 1, sh: 3, fl: 3 },
+      aimMode: false, sprintActive: false, autoSweeping: false, autoCd: 0,
+      merges: 0, lampsTotal: def.lamps.length, lampsLit: 0,
+      totalInitialLayers: 0,
+      startTime: performance.now(),
+      status: 'playing', deadlockTimer: 0, warnPlayed: false,
+      trauma: 0, shakeT: 0, lastCol: [-1, -1, -1, -1],
+    };
+    st.totalInitialLayers = countRemainingLayers(st, -1);
+    recomputeBFS(st);
+    return st;
+  }
+
+  function initAllDistricts() {
+    districtStates = DISTRICTS.map(d => buildDistrictState(d));
+    selectDistrict(0, true);
+  }
+
+  function curState() { return districtStates[activeIdx]; }
+
+  function selectDistrict(idx, instant = false) {
+    activeIdx = idx;
+    targetCamX = idx;
+    if (instant) camX = idx;
+    hideModals();
+    const st = curState();
+    st.aimMode = false;
+    document.getElementById('aim-banner').classList.remove('show');
+    canvas.classList.remove('aiming');
+    updateTabs();
+    renderAllUI();
+    showToast(`🏙️ ${st.def.name} · ${st.def.subtitle}`);
+  }
+
+  function restartCurrentDistrict() {
+    districtStates[activeIdx] = buildDistrictState(DISTRICTS[activeIdx]);
+    selectDistrict(activeIdx, true);
+  }
+
+  function hideModals() {
+    document.getElementById('modal-rescue').classList.remove('show');
+    document.getElementById('modal-win').classList.remove('show');
+  }
+
+  function showToast(msg) {
+    const w = document.getElementById('toast-wrap');
+    w.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'toast-pill'; el.textContent = msg;
+    w.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 1850);
+  }
+
+  function updateTabs() {
+    const st = curState();
+    const badge = document.getElementById('lvl-badge');
+    if (badge && st) badge.textContent = `Lv.0${activeIdx + 1} ${st.def.name}`;
+  }
+
+  /* =========================================================
+     7. BFS ACCESSIBILITY, COUNTERS & ROUND-TRIP PATHS
+  ========================================================= */
+  function recomputeBFS(st) {
+    const { grid, def } = st, rows = def.rows, cols = def.cols;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) { grid[r][c].reachable = false; grid[r][c].bfsDist = -1; grid[r][c].parent = null; }
+    const q = [];
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[rows - 1][c];
+      if (cell.type === 'empty') { cell.bfsDist = 0; cell.parent = { r: rows, c }; q.push(cell); }
+      else if (cell.type === 'obs') { cell.reachable = true; cell.bfsDist = 1; cell.parent = { r: rows, c }; }
+    }
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    let head = 0;
+    while (head < q.length) {
+      const cur = q[head++];
+      for (const [dr, dc] of dirs) {
+        const nr = cur.r + dr, nc = cur.c + dc;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        const nb = grid[nr][nc];
+        if (nb.bfsDist !== -1) continue;
+        if (nb.type === 'empty') { nb.bfsDist = cur.bfsDist + 1; nb.parent = { r: cur.r, c: cur.c }; q.push(nb); }
+        else if (nb.type === 'obs') { nb.reachable = true; nb.bfsDist = cur.bfsDist + 1; nb.parent = { r: cur.r, c: cur.c }; }
+      }
+    }
+  }
+
+  function countRemainingLayers(st, localColor) {
+    let n = 0;
+    for (let r = 0; r < st.def.rows; r++)
+      for (let c = 0; c < st.def.cols; c++) {
+        const cell = st.grid[r][c];
+        if (cell.type === 'obs') {
+          for (const l of cell.layers) if (localColor === -1 || l === localColor) n++;
+        }
+      }
+    return n;
+  }
+
+  function getReachableObs(st, localColor) {
+    const out = [];
+    for (let r = 0; r < st.def.rows; r++)
+      for (let c = 0; c < st.def.cols; c++) {
+        const cell = st.grid[r][c];
+        if (cell.type === 'obs' && cell.reachable && cell.reservedBy === null &&
+            (localColor === -1 || cell.layers[0] === localColor)) out.push(cell);
+      }
+    return out;
+  }
+
+  function getSlotBayCol(st, slotId) {
+    const cols = st.def.cols;
+    if (slotId === null) return (cols - 1) * 0.5;
+    const idx = st.garage.findIndex(g => g.id === slotId);
+    const sIdx = idx >= 0 ? idx : 0;
+    const sx = ((sIdx + 0.5) / 6) * viewW;
+    return Math.max(0.4, Math.min(cols - 1.4, (sx - gridOX) / tileSize - 0.5));
+  }
+
+  function buildOutboundPath(st, cell, bayCol) {
+    const pts = [];
+    let cur = { r: cell.r, c: cell.c }, guard = 0;
+    while (cur && guard++ < 220) {
+      pts.push({ r: cur.r, c: cur.c });
+      if (cur.r >= st.def.rows) break;
+      cur = st.grid[cur.r][cur.c].parent;
+    }
+    pts.reverse();
+    const entryCol = pts[0].c;
+    const path = [{ r: st.def.rows + 0.85, c: bayCol }];
+    if (Math.abs(bayCol - entryCol) > 0.1) {
+      path.push({ r: st.def.rows + 0.05, c: bayCol });
+      path.push({ r: st.def.rows + 0.05, c: entryCol });
+    }
+    for (const p of pts) path.push(p);
+    return path;
+  }
+
+  function buildReturnPath(st, u) {
+    const bayCol = getSlotBayCol(st, u.ownerSlotId);
+    const rev = [{ r: u.y, c: u.x }];
+    const startFrom = Math.min(u.segIdx, u.path.length - 1);
+    for (let i = startFrom; i >= 0; i--) {
+      const p = u.path[i];
+      if (p.r >= st.def.rows) break;
+      rev.push({ r: p.r, c: p.c });
+    }
+    const exitCol = rev[rev.length - 1].c;
+    rev.push({ r: st.def.rows + 0.05, c: exitCol });
+    if (Math.abs(exitCol - bayCol) > 0.1) rev.push({ r: st.def.rows + 0.05, c: bayCol });
+    rev.push({ r: st.def.rows + 0.9, c: bayCol });
+    return rev;
+  }
+
+  function pickTarget(st, localColor, isBeast) {
+    const cands = getReachableObs(st, localColor);
+    if (!cands.length) return null;
+    const lastC = st.lastCol[localColor];
+    cands.sort((a, b) => {
+      if (a.bfsDist !== b.bfsDist) return a.bfsDist - b.bfsDist;
+      const pA = (a.valveId ? 4 : 0) + (a.lamp ? 2 : 0) + (isBeast && a.layers.length === 2 && a.layers[0] === a.layers[1] ? 3 : 0);
+      const pB = (b.valveId ? 4 : 0) + (b.lamp ? 2 : 0) + (isBeast && b.layers.length === 2 && b.layers[0] === b.layers[1] ? 3 : 0);
+      if (pA !== pB) return pB - pA;
+      return (b.c === lastC ? 1 : 0) - (a.c === lastC ? 1 : 0) || b.r - a.r || a.c - b.c;
+    });
+    return cands[0];
+  }
+
+  function pickWildcardTarget(st) {
+    const cands = getReachableObs(st, -1);
+    if (!cands.length) return null;
+    const waiting = new Set(st.garage.filter(g => !g.vacating && g.waiting).map(g => g.color));
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    function sc(cell) {
+      let s = cell.valveId ? 65 : 0;
+      for (const [dr, dc] of dirs) {
+        const nr = cell.r + dr, nc = cell.c + dc;
+        if (nr >= 0 && nr < st.def.rows && nc >= 0 && nc < st.def.cols) {
+          const nb = st.grid[nr][nc];
+          if (nb.type === 'obs' && !nb.reachable && waiting.has(nb.layers[0])) s += 100;
+        }
+      }
+      if (cell.layers.length === 2 && waiting.has(cell.layers[1])) s += 90;
+      return s - cell.bfsDist * 2;
+    }
+    cands.sort((a, b) => sc(b) - sc(a));
+    return cands[0];
+  }
+
+  /* =========================================================
+     8. CORE GAMEPLAY ACTIONS (Early Vacate, 3-in-1 Heatwave, Thermal Pierce, Sprint)
+  ========================================================= */
+  function activeGarageCount(st) {
+    return st.garage.filter(g => !g.vacating).length;
+  }
+
+  function onTapQueue(colIdx) {
+    const st = curState();
+    if (!st || st.status !== 'playing') return;
+    if (st.aimMode) { toggleAim(false); return; }
+    sfx.unlock();
+
+    const col = st.columns[colIdx];
+    if (!col || !col.length) return;
+    const card = col[0];
+
+    if (card.ice > 0) {
+      sfx.playIce();
+      const el = document.querySelector(`.q-col[data-col="${colIdx}"] .q-card.r0`);
+      if (el) { el.classList.remove('deny'); void el.offsetWidth; el.classList.add('deny'); }
+      showToast(`❄ 冰封锁定（其他列再发车 ${card.ice} 次解锁）`);
+      return;
+    }
+
+    // Early-Vacate Rule (Doc 01 §3.3 & E03!): vacating zero-quota slots don't block!
+    if (activeGarageCount(st) >= st.maxSlots) {
+      sfx.playWarn();
+      showToast('🚧 车库已满！可用 P+1 或召唤万能车');
+      return;
+    }
+
+    // Remove a vacating slot first if needed so the new card slots in seamlessly!
+    if (st.garage.length >= st.maxSlots) {
+      const vacIdx = st.garage.findIndex(g => g.vacating);
+      if (vacIdx !== -1) {
+        const old = st.garage[vacIdx];
+        for (const u of st.units) if (u.ownerSlotId === old.id) u.ownerSlotId = null;
+        st.garage.splice(vacIdx, 1);
+      }
+    }
+
+    col.shift();
+    if (col.length > 0 && col[0].mystery) {
+      col[0].mystery = false;
+      spawnFloat(st, viewW * (0.14 + colIdx * 0.24), viewH - 18, '✨ 盲盒揭晓!', '#fde047');
+    }
+
+    st.garage.push({
+      id: nextSlotId++, color: card.color,
+      unallocated: card.quota, outbound: 0, returning: 0,
+      isBeast: false, cd: 0.02, waiting: false, vacating: false
+    });
+    sfx.playTap();
+
+    // Standard ice countdown on rows 0 & 1
+    let thawed = tickQueueIce(st, 1);
+    if (thawed > 0) { sfx.playIce(); showToast('💥 引擎震碎了结冰卷帘门！'); }
+
+    // 3-in-1 Merge check (with extra Merge Heatwave!)
+    checkMerge(st);
+    st.deadlockTimer = 0;
+
+    if (activeGarageCount(st) === st.maxSlots - 1 && !st.warnPlayed) { sfx.playWarn(); st.warnPlayed = true; }
+    else if (activeGarageCount(st) < st.maxSlots - 1) st.warnPlayed = false;
+
+    renderAllUI();
+  }
+
+  function tickQueueIce(st, amount = 1) {
+    let thawed = 0;
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < Math.min(2, st.columns[c].length); r++) {
+        if (st.columns[c][r].ice > 0) {
+          st.columns[c][r].ice = Math.max(0, st.columns[c][r].ice - amount);
+          if (st.columns[c][r].ice === 0) thawed++;
+        }
+      }
+    }
+    return thawed;
+  }
+
+  function checkMerge(st) {
+    for (let ci = 0; ci < 4; ci++) {
+      const idxs = [];
+      for (let i = 0; i < st.garage.length; i++) {
+        const g = st.garage[i];
+        if (!g.vacating && g.color === ci && !g.isBeast) idxs.push(i);
+      }
+      if (idxs.length >= 3) {
+        const keep = st.garage[idxs[0]], s1 = st.garage[idxs[1]], s2 = st.garage[idxs[2]];
+        keep.unallocated += s1.unallocated + s2.unallocated;
+        keep.outbound += s1.outbound + s2.outbound;
+        keep.returning += s1.returning + s2.returning;
+        keep.isBeast = true; keep.cd = 0.01;
+        for (const u of st.units) {
+          if (u.ownerSlotId === s1.id || u.ownerSlotId === s2.id) {
+            u.ownerSlotId = keep.id; u.isBeast = true; u.speed = CFG.BEAST_SPD;
+          }
+        }
+        st.garage.splice(idxs[2], 1);
+        st.garage.splice(idxs[1], 1);
+        st.merges++; st.warnPlayed = false;
+
+        // Exclusive Perk #2: Merge Heatwave -> extra -1 ice on rows 0..1! (E05!)
+        const extraThaw = tickQueueIce(st, 1);
+
+        sfx.playMerge();
+        st.trauma = Math.min(1, st.trauma + 0.58);
+        spawnBurst(st, viewW * 0.5, viewH - 18, '#fbbf24', 24, true);
+        spawnFloat(st, viewW * 0.5, viewH * 0.65, `🔥 三合一喷火巨兽！热浪破冰!`, '#fde047');
+        showToast(extraThaw > 0 ? '🔥 三合一巨兽+热浪直接融碎结冰门！腾2车位！' : '🔥 黄金龙纹巨兽合体！腾2位 · 高温贯通双层！');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function spawnUnit(st, slot, targetCell, isWildcard = false) {
+    const bayCol = getSlotBayCol(st, isWildcard ? null : slot.id);
+    const path = buildOutboundPath(st, targetCell, bayCol);
+    const id = nextUnitId++;
+    targetCell.reservedBy = id;
+    const isBeast = isWildcard ? false : slot.isBeast;
+    const willPierce = isBeast && targetCell.layers.length === 2 && targetCell.layers[0] === slot.color && targetCell.layers[1] === slot.color;
+    const cost = willPierce ? Math.min(slot.unallocated, 2) : 1;
+
+    if (isWildcard) { st.wcPool.quota--; st.wcPool.outbound++; }
+    else { slot.unallocated -= cost; slot.outbound++; }
+
+    st.units.push({
+      id, ownerSlotId: isWildcard ? null : slot.id, isWildcard,
+      localColor: isWildcard ? targetCell.layers[0] : slot.color,
+      catId: st.def.categories[isWildcard ? targetCell.layers[0] : slot.color],
+      isBeast, willPierce,
+      phase: 'outbound', turnTimer: 0,
+      speed: (isWildcard || isBeast) ? CFG.BEAST_SPD : CFG.NORMAL_SPD,
+      targetR: targetCell.r, targetC: targetCell.c,
+      path, segIdx: 0, segT: 0,
+      x: path[0].c, y: path[0].r,
+      dir: 'up',
+    });
+  }
+
+  function clearTileLayer(st, r, c, source = 'plow', pierce = false) {
+    const cell = st.grid[r][c];
+    if (!cell || cell.type !== 'obs') return;
+
+    // Refund if flame bomb beat an outbound unit
+    if (source === 'bomb' && cell.reservedBy !== null) {
+      const u = st.units.find(x => x.id === cell.reservedBy && x.phase === 'outbound');
+      if (u) {
+        if (u.isWildcard) { st.wcPool.outbound = Math.max(0, st.wcPool.outbound - 1); st.wcPool.returning++; st.wcPool.quota++; }
+        else {
+          const own = st.garage.find(g => g.id === u.ownerSlotId);
+          if (own) { own.outbound = Math.max(0, own.outbound - 1); own.returning++; own.unallocated += (u.willPierce ? 2 : 1); }
+        }
+        u.phase = 'returning'; u.path = buildReturnPath(st, u); u.segIdx = 0; u.segT = 0;
+      }
+    }
+
+    const touchedColors = [];
+    if (source === 'bomb' || pierce) {
+      while (cell.layers.length) touchedColors.push(cell.layers.shift());
+    } else {
+      touchedColors.push(cell.layers.shift());
+    }
+
+    cell.reservedBy = null;
+    const topLocal = touchedColors[0];
+    const catId = st.def.categories[topLocal];
+    st.lastCol[topLocal] = c;
+
+    const px = gridOX + (c + 0.5) * tileSize, py = gridOY + (r + 0.5) * tileSize;
+    spawnBurst(st, px, py, CATS[catId].fill, pierce ? 14 : 7, pierce);
+    if (pierce) spawnFloat(st, px, py - 8, '🔥贯通!', '#fde047');
+    if (source !== 'bomb') sfx.playClear(catId, pierce);
+
+    if (cell.layers.length === 0) {
+      cell.type = 'empty';
+      cell.revealPop = 1.0;
+      if (cell.lamp && !cell.lampLit) {
+        cell.lampLit = true; st.lampsLit++;
+        sfx.playLamp();
+        spawnBurst(st, px, py - 8, '#fde047', 10, true);
+      }
+      if (cell.valveId) triggerValve(st, cell.valveId);
+      checkBuildings(st);
+    }
+
+    recomputeBFS(st);
+    for (const lc of new Set(touchedColors)) checkCategoryCleared(st, lc);
+    checkSprintReady(st);
+    checkVictory(st);
+  }
+
+  function triggerValve(st, valveId) {
+    const v = st.valves.find(x => x.id === valveId);
+    if (!v || v.triggered) return;
+    v.triggered = true;
+    sfx.playValve();
+    st.trauma = Math.min(1, st.trauma + 0.4);
+    const vx = gridOX + (v.c + 0.5) * tileSize, vy = gridOY + (v.r + 0.5) * tileSize;
+    spawnBurst(st, vx, vy, '#fff7ed', 20, true);
+    spawnFloat(st, vx, vy - 10, '💨 暖气总阀开启！', '#fed7aa');
+    showToast('💨 暖气蒸汽融化了左右冰封侧巷门！');
+    for (const g of v.gates) {
+      const gc = st.grid[g.r][g.c];
+      if (gc.type === 'gate') {
+        gc.type = 'empty'; gc.revealPop = 1.0;
+        spawnBurst(st, gridOX + (g.c + 0.5) * tileSize, gridOY + (g.r + 0.5) * tileSize, '#bae6fd', 14, true);
+      }
+    }
+    recomputeBFS(st);
+  }
+
+  function checkBuildings(st) {
+    for (const b of st.buildings) {
+      if (b.lit) continue;
+      let clr = 0;
+      for (const [tr, tc] of b.triggers) if (st.grid[tr][tc].type === 'empty') clr++;
+      if (clr >= b.need) {
+        b.lit = true;
+        sfx.playBuilding();
+        const bx = gridOX + (b.c + b.w * 0.5) * tileSize, by = gridOY + (b.r + b.h * 0.4) * tileSize;
+        spawnBurst(st, bx, by, '#fde047', 16, true);
+        spawnFloat(st, bx, by - 8, `🏮 ${b.name}亮灯!`, '#fef08a');
+        const door = b.triggers.find(([tr, tc]) => st.grid[tr][tc].type === 'empty') || b.triggers[0];
+        spawnResident(st, door[0], door[1]);
+      }
+    }
+  }
+
+  function spawnResident(st, r, c) {
+    const scarves = ['#ef4444', '#f59e0b', '#10b981', '#ec4899', '#38bdf8'];
+    st.residents.push({
+      r, c, x: c, y: r, tr: r, tc: c,
+      scarf: scarves[st.residents.length % scarves.length],
+      coat: ['#6d3221', '#1e3a8a', '#2f5e3b', '#5b21b6'][st.residents.length % 4],
+      pause: 0.4 + Math.random() * 0.6, phase: Math.random() * 6
+    });
+  }
+
+  // Iron Law: "全场清类即收队" (E06)
+  function checkCategoryCleared(st, localColor) {
+    if (countRemainingLayers(st, localColor) > 0) return;
+    let did = false;
+    for (let i = st.garage.length - 1; i >= 0; i--) {
+      const g = st.garage[i];
+      if (g.color === localColor) {
+        g.unallocated = 0;
+        if (g.outbound === 0 && g.returning === 0) { st.garage.splice(i, 1); did = true; }
+        else if (g.outbound === 0) { g.vacating = true; did = true; }
+      }
+    }
+    for (let c = 0; c < 4; c++) {
+      const prev = st.columns[c].length;
+      st.columns[c] = st.columns[c].filter(card => card.color !== localColor);
+      if (st.columns[c].length !== prev) {
+        did = true;
+        if (st.columns[c].length > 0) st.columns[c][0].mystery = false;
+      }
+    }
+    if (did) {
+      const cname = CATS[st.def.categories[localColor]].name;
+      showToast(`✨ ${cname}全图清空！余车自动欢呼收队！`);
+      renderAllUI();
+    }
+  }
+
+  // Endgame Sprint Check (Doc 01 §3.6 & E10!)
+  function checkSprintReady(st) {
+    if (st.sprintActive || st.status !== 'playing') return;
+    const rem = countRemainingLayers(st, -1);
+    if (rem === 0 || rem > Math.min(18, Math.ceil(st.totalInitialLayers * 0.16))) return;
+    for (let c = 0; c < 4; c++)
+      for (const card of st.columns[c]) if (card.ice > 0 || card.mystery) return;
+    // Ensure all remaining layer types (including inner layers!) have reachable targets right now
+    const remainTypes = new Set();
+    for (let r = 0; r < st.def.rows; r++)
+      for (let c = 0; c < st.def.cols; c++)
+        if (st.grid[r][c].type === 'obs') for (const l of st.grid[r][c].layers) remainTypes.add(l);
+    for (const lc of remainTypes) if (getReachableObs(st, lc).length === 0) return;
+
+    st.sprintActive = true;
+    showToast('✨ 街区冲刺！车队 1.6× 加速，可一键清盘！');
+    if (st === curState()) document.getElementById('sprint-btn').classList.add('show');
+  }
+
+  function checkVictory(st) {
+    if (st.status === 'won') return;
+    if (countRemainingLayers(st, -1) === 0 && st.fireballs.length === 0 && !st.units.some(u => u.phase === 'outbound')) {
+      st.status = 'won'; st.aimMode = false; st.autoSweeping = false;
+      for (const b of st.buildings) b.lit = true;
+      sfx.playWin();
+      if (st === curState()) {
+        document.getElementById('sprint-btn').classList.remove('show');
+        const sec = Math.max(1, Math.floor((performance.now() - st.startTime) / 1000));
+        document.getElementById('win-title').textContent = `🏮 ${st.def.name} · 暖灯全亮！`;
+        document.getElementById('st-lamps').textContent = `${st.lampsLit}/${st.lampsTotal}`;
+        document.getElementById('st-merges').textContent = `${st.merges}`;
+        document.getElementById('st-time').textContent = `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+        document.getElementById('win-next').textContent = activeIdx < DISTRICTS.length - 1 ? '右滑进入下一街区 →' : '重温第 1 街区 ↻';
+        setTimeout(() => { if (curState() === st && st.status === 'won') document.getElementById('modal-win').classList.add('show'); }, 800);
+      }
+    }
+  }
+
+  /* =========================================================
+     9. FOUR PROPS
+  ========================================================= */
+  function useWildcard() {
+    const st = curState();
+    if (!st || (st.status !== 'playing' && st.status !== 'deadlock') || st.props.wc <= 0) return;
+    if (!getReachableObs(st, -1).length) { showToast('当前没有可达障碍'); return; }
+    sfx.unlock(); st.props.wc--;
+    if (st.status === 'deadlock') { st.status = 'playing'; st.deadlockTimer = 0; hideModals(); }
+    toggleAim(false);
+    st.wcPool.quota += CFG.WC_QUOTA; st.wcPool.cd = 0.02;
+    sfx.playMerge();
+    showToast(`🌈 彩虹万能车出击！往返强清 ${CFG.WC_QUOTA} 层！`);
+    renderAllUI();
+  }
+
+  function useExpand() {
+    const st = curState();
+    if (!st || (st.status !== 'playing' && st.status !== 'deadlock') || st.expanded || st.props.ex <= 0) return;
+    sfx.unlock(); st.props.ex--; st.expanded = true; st.maxSlots = 6; st.warnPlayed = false;
+    if (st.status === 'deadlock') { st.status = 'playing'; st.deadlockTimer = 0; hideModals(); }
+    toggleAim(false);
+    sfx.playBuilding(); showToast('🅿️ 第 6 临时扩容车位已开启！');
+    renderAllUI();
+  }
+
+  function useShuffle() {
+    const st = curState();
+    if (!st || (st.status !== 'playing' && st.status !== 'deadlock') || st.props.sh <= 0) return;
+    const all = []; for (let c = 0; c < 4; c++) all.push(...st.columns[c]);
+    if (all.length <= 1) return;
+    sfx.unlock(); st.props.sh--;
+    if (st.status === 'deadlock') { st.status = 'playing'; st.deadlockTimer = 0; hideModals(); }
+    toggleAim(false);
+
+    const reach = [0,1,2,3].map(ci => getReachableObs(st, ci).length > 0);
+    const merge2 = [0,1,2,3].map(ci => st.garage.filter(g => !g.vacating && g.color === ci && !g.isBeast).length === 2);
+    for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
+    all.sort((a, b) => ((b.ice===0?10:0)+(merge2[b.color]?25:0)+(reach[b.color]?15:0)) - ((a.ice===0?10:0)+(merge2[a.color]?25:0)+(reach[a.color]?15:0)));
+    let free = 0; for (let i = 0; i < Math.min(4, all.length); i++) if (all[i].ice === 0) free++;
+    if (free < Math.min(2, all.length)) for (let i = 0; i < Math.min(2, all.length); i++) all[i].ice = 0;
+
+    const cols = [[],[],[],[]];
+    all.forEach((card, i) => cols[i % 4].push(card));
+    for (let c = 0; c < 4; c++) if (cols[c].length) cols[c][0].mystery = false;
+    st.columns = cols;
+    sfx.playValve(); showToast('🌪️ 热风洗牌完成！救命车已均匀调至前排');
+    renderAllUI();
+  }
+
+  function toggleAim(force) {
+    const st = curState(); if (!st) return;
+    const next = typeof force === 'boolean' ? force : !st.aimMode;
+    if (next && st.props.fl <= 0) return;
+    if (next && st.status === 'deadlock') { st.status = 'playing'; st.deadlockTimer = 0; hideModals(); }
+    st.aimMode = next;
+    document.getElementById('aim-banner').classList.toggle('show', next);
+    canvas.classList.toggle('aiming', next);
+    document.getElementById('prop-flame').classList.toggle('active', next);
+  }
+
+  function dropFlame(tr, tc) {
+    const st = curState(); if (!st || !st.aimMode || st.props.fl <= 0) return;
+    let hits = 0;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const nr = tr + dr, nc = tc + dc;
+      if (nr >= 0 && nr < st.def.rows && nc >= 0 && nc < st.def.cols)
+        if (st.grid[nr][nc].type === 'obs' || st.grid[nr][nc].type === 'gate') hits++;
+    }
+    if (!hits) { showToast('请点选积雪/垃圾/冰门区域（空地不耗道具）'); return; }
+    st.props.fl--; toggleAim(false); sfx.unlock();
+    const tx = gridOX + (tc + 0.5) * tileSize, ty = gridOY + (tr + 0.5) * tileSize;
+    st.fireballs.push({ r: tr, c: tc, x: tx + 24, y: -18, tx, ty, t: 0, dur: 0.24 });
+    renderAllUI();
+  }
+
+  function explodeFlame(st, tr, tc) {
+    sfx.playBoom(); st.trauma = Math.min(1, st.trauma + 0.7);
+    const tx = gridOX + (tc + 0.5) * tileSize, ty = gridOY + (tr + 0.5) * tileSize;
+    spawnBurst(st, tx, ty, '#f97316', 26, true);
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const nr = tr + dr, nc = tc + dc;
+      if (nr < 0 || nr >= st.def.rows || nc < 0 || nc >= st.def.cols) continue;
+      const cell = st.grid[nr][nc];
+      if (cell.type === 'gate') { cell.type = 'empty'; cell.revealPop = 1; }
+      else if (cell.type === 'obs') clearTileLayer(st, nr, nc, 'bomb', true);
+    }
+    recomputeBFS(st);
+    for (let ci = 0; ci < 4; ci++) checkCategoryCleared(st, ci);
+    checkSprintReady(st); checkVictory(st);
+    if (st === curState()) renderAllUI();
+  }
+
+  /* =========================================================
+     10. SIMULATION TICK
+  ========================================================= */
+  function update(dt) {
+    animTime += dt;
+    // Smooth horizontal city-scroll glide on district transition (locked during gameplay)
+    camX += (targetCamX - camX) * Math.min(1, dt * 4.8);
+    if (Math.abs(targetCamX - camX) < 0.001) camX = targetCamX;
+
+    for (const f of flakes) {
+      f.y += f.vy * dt; f.x += f.vx * dt;
+      if (f.y > 1) { f.y = 0; f.x = Math.random(); }
+      if (f.x < 0) f.x = 1; if (f.x > 1) f.x = 0;
+    }
+
+    const st = curState();
+    if (!st) return;
+
+    if (st.trauma > 0) { st.trauma = Math.max(0, st.trauma - 1.7 * dt); st.shakeT += dt * 36; }
+
+    // Auto-sweep button during Endgame Sprint
+    if (st.autoSweeping && st.status === 'playing') {
+      st.autoCd -= dt;
+      if (st.autoCd <= 0 && activeGarageCount(st) < st.maxSlots) {
+        for (let c = 0; c < 4; c++) {
+          if (st.columns[c].length > 0 && st.columns[c][0].ice === 0) {
+            onTapQueue(c); st.autoCd = 0.14; break;
+          }
+        }
+      }
+    }
+
+    // Fireballs
+    for (let i = st.fireballs.length - 1; i >= 0; i--) {
+      const fb = st.fireballs[i]; fb.t += dt / fb.dur;
+      if (fb.t >= 1) { st.fireballs.splice(i, 1); explodeFlame(st, fb.r, fb.c); }
+      else { const e = fb.t * fb.t; fb.x = fb.tx + 24 * (1 - e); fb.y = -18 + (fb.ty + 18) * e; }
+    }
+
+    // Wildcard rapid round-trip
+    if (st.wcPool.quota > 0) {
+      st.wcPool.cd -= dt;
+      if (st.wcPool.cd <= 0 && (st.wcPool.outbound + st.wcPool.returning) < CFG.WC_MAX) {
+        const tgt = pickWildcardTarget(st);
+        if (tgt) { spawnUnit(st, null, tgt, true); st.wcPool.cd = CFG.WC_CD; }
+        else st.wcPool.quota = 0;
+      }
+    }
+
+    // Garage slot dispatch & Early-Vacate transition
+    let uiDirty = false;
+    const sprintCdMul = st.sprintActive ? 0.65 : 1.0;
+    for (let i = st.garage.length - 1; i >= 0; i--) {
+      const slot = st.garage[i];
+      const maxC = slot.isBeast ? CFG.BEAST_MAX : CFG.NORMAL_MAX;
+      const cdBase = (slot.isBeast ? CFG.BEAST_CD : CFG.NORMAL_CD) * sprintCdMul;
+      const inMotion = slot.outbound + slot.returning;
+
+      if (slot.unallocated > 0) {
+        slot.cd -= dt;
+        if (slot.cd <= 0 && inMotion < maxC) {
+          const tgt = pickTarget(st, slot.color, slot.isBeast);
+          if (tgt) {
+            spawnUnit(st, slot, tgt, false);
+            slot.cd = cdBase;
+            if (slot.waiting) { slot.waiting = false; uiDirty = true; }
+          } else {
+            const nw = (inMotion === 0);
+            if (slot.waiting !== nw) { slot.waiting = nw; uiDirty = true; }
+          }
+        }
+      } else {
+        // Quota 0! Check Early Vacate (E03!)
+        if (slot.outbound === 0 && slot.returning > 0 && !slot.vacating) {
+          slot.vacating = true; uiDirty = true;
+        }
+        if (inMotion === 0) {
+          st.garage.splice(i, 1); st.warnPlayed = false; uiDirty = true;
+        }
+      }
+    }
+
+    // Move 4-direction pixel vehicles (outbound -> smash -> U-turn -> return!)
+    const sprintSpd = st.sprintActive ? CFG.SPRINT_SPD_MUL : 1.0;
+    for (let i = st.units.length - 1; i >= 0; i--) {
+      const u = st.units[i];
+      if (u.phase === 'turn') {
+        u.turnTimer -= dt;
+        if (u.turnTimer <= 0) {
+          u.phase = 'returning'; u.path = buildReturnPath(st, u); u.segIdx = 0; u.segT = 0;
+        }
+        continue;
+      }
+      if (u.segIdx + 1 >= u.path.length) {
+        if (u.phase === 'outbound') {
+          if (u.isWildcard) { st.wcPool.outbound = Math.max(0, st.wcPool.outbound - 1); st.wcPool.returning++; }
+          else {
+            const own = st.garage.find(g => g.id === u.ownerSlotId);
+            if (own) { own.outbound = Math.max(0, own.outbound - 1); own.returning++; if (own.unallocated === 0 && own.outbound === 0) own.vacating = true; uiDirty = true; }
+          }
+          clearTileLayer(st, u.targetR, u.targetC, u.isWildcard ? 'wc' : 'plow', u.willPierce);
+          uiDirty = true;
+          u.phase = 'turn'; u.turnTimer = 0.055;
+        } else {
+          // Returned to garage bay!
+          st.units.splice(i, 1);
+          if (u.isWildcard) st.wcPool.returning = Math.max(0, st.wcPool.returning - 1);
+          else {
+            const own = st.garage.find(g => g.id === u.ownerSlotId);
+            if (own) { own.returning = Math.max(0, own.returning - 1); sfx.playDock(); uiDirty = true; }
+          }
+        }
+        continue;
+      }
+
+      const own = u.ownerSlotId ? st.garage.find(g => g.id === u.ownerSlotId) : null;
+      const spdMul = u.phase === 'returning' ? (own && own.vacating ? CFG.VACATE_RETURN_MUL : CFG.RETURN_MUL) : 1.0;
+      let rem = u.speed * spdMul * sprintSpd * dt;
+      while (rem > 0 && u.segIdx + 1 < u.path.length) {
+        const a = u.path[u.segIdx], b = u.path[u.segIdx + 1];
+        const segLen = Math.max(0.001, Math.hypot(b.c - a.c, b.r - a.r));
+        const left = (1 - u.segT) * segLen;
+        if (Math.abs(b.c - a.c) > Math.abs(b.r - a.r)) u.dir = b.c > a.c ? 'right' : 'left';
+        else u.dir = b.r > a.r ? 'down' : 'up';
+        if (rem >= left) { rem -= left; u.segIdx++; u.segT = 0; u.x = b.c; u.y = b.r; }
+        else { u.segT += rem / segLen; u.x = a.c + (b.c - a.c) * u.segT; u.y = a.r + (b.r - a.r) * u.segT; rem = 0; }
+      }
+      if ((u.isBeast || u.isWildcard) && Math.random() < 0.35) {
+        st.particles.push({
+          x: gridOX + (u.x + 0.5) * tileSize, y: gridOY + (u.y + 0.5) * tileSize,
+          vx: (Math.random()-0.5)*16, vy: -12 - Math.random()*12, sz: 2,
+          color: u.isWildcard ? '#fde047' : '#fb923c', life: 0.25, maxLife: 0.25
+        });
+      }
+    }
+
+    if (uiDirty) renderAllUI();
+
+    // Reveal pops, chimney smoke, strolling residents, particles
+    for (let r = 0; r < st.def.rows; r++)
+      for (let c = 0; c < st.def.cols; c++)
+        if (st.grid[r][c].revealPop > 0) st.grid[r][c].revealPop = Math.max(0, st.grid[r][c].revealPop - dt * 4);
+
+    for (const b of st.buildings) {
+      if (!b.lit) continue;
+      b.smokeCd -= dt;
+      if (b.smokeCd <= 0) {
+        b.smokeCd = 0.65 + Math.random() * 0.5;
+        st.particles.push({
+          x: gridOX + (b.c + b.w * 0.72) * tileSize, y: gridOY + (b.r + 0.15) * tileSize,
+          vx: 4 + Math.random() * 6, vy: -10 - Math.random() * 8, sz: 3,
+          color: 'rgba(255,250,235,0.6)', life: 1.1, maxLife: 1.1, smoke: true
+        });
+      }
+    }
+
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const res of st.residents) {
+      const dist = Math.hypot(res.tc - res.x, res.tr - res.y);
+      if (dist > 0.04) {
+        const step = Math.min(1.1 * dt, dist);
+        res.x += (res.tc - res.x) / dist * step; res.y += (res.tr - res.y) / dist * step; res.phase += dt * 10;
+      } else {
+        res.x = res.tc; res.y = res.tr; res.r = res.tr; res.c = res.tc;
+        res.pause -= dt;
+        if (res.pause <= 0) {
+          const opts = [];
+          for (const [dr, dc] of dirs) {
+            const nr = res.r + dr, nc = res.c + dc;
+            if (nr >= 0 && nr < st.def.rows && nc >= 0 && nc < st.def.cols && st.grid[nr][nc].type === 'empty') opts.push([nr, nc]);
+          }
+          if (opts.length) { const p = opts[Math.floor(Math.random()*opts.length)]; res.tr = p[0]; res.tc = p[1]; }
+          res.pause = 0.5 + Math.random() * 1.0;
+        }
+      }
+    }
+
+    for (let i = st.particles.length - 1; i >= 0; i--) {
+      const p = st.particles[i]; p.life -= dt;
+      if (p.life <= 0) { st.particles.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; if (!p.smoke) p.vy += 60 * dt;
+    }
+    for (let i = st.floats.length - 1; i >= 0; i--) {
+      const f = st.floats[i]; f.life -= dt; f.y -= 22 * dt;
+      if (f.life <= 0) st.floats.splice(i, 1);
+    }
+
+    // Deadlock check (strictly excludes vacating slots!)
+    if (st.status === 'playing' && !st.aimMode) {
+      const full = activeGarageCount(st) >= st.maxSlots;
+      const noOut = !st.units.some(u => u.phase === 'outbound') && st.fireballs.length === 0 && st.wcPool.quota === 0;
+      const stalled = full && st.garage.filter(g => !g.vacating).every(g => getReachableObs(st, g.color).length === 0);
+      const canMerge = [0,1,2,3].some(ci => st.garage.filter(g => !g.vacating && g.color === ci && !g.isBeast).length >= 3);
+      if (full && noOut && stalled && !canMerge && countRemainingLayers(st, -1) > 0) {
+        if (st.deadlockTimer === 0) { sfx.playWarn(); renderGarage(true); }
+        st.deadlockTimer += dt;
+        if (st.deadlockTimer >= CFG.DEADLOCK_BUF) {
+          st.status = 'deadlock';
+          document.getElementById('res-ex').disabled = (st.expanded || st.props.ex <= 0);
+          document.getElementById('res-wc').disabled = (st.props.wc <= 0);
+          document.getElementById('res-fl').disabled = (st.props.fl <= 0);
+          document.getElementById('res-sh').disabled = (st.props.sh <= 0);
+          document.getElementById('modal-rescue').classList.add('show');
+        }
+      } else if (st.deadlockTimer > 0) { st.deadlockTimer = 0; renderGarage(false); }
+    }
+  }
+
+  function spawnBurst(st, x, y, color, n, glow = false) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, s = 22 + Math.random() * 68;
+      st.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 18, sz: Math.random()<0.5?2:3, color, life: 0.35 + Math.random()*0.25, maxLife: 0.6, glow });
+    }
+  }
+  function spawnFloat(st, x, y, text, color) { st.floats.push({ x, y, text, color, life: 1.15, maxLife: 1.15 }); }
+
+  /* =========================================================
+     11. DOM UI RENDERERS (5+1 Depot, 4x3 Queue, Remain Micro Bar, Props)
+  ========================================================= */
+  function renderAllUI() {
+    const st = curState(); if (!st) return;
+    document.getElementById('lamp-txt').textContent = `${st.lampsLit}/${st.lampsTotal}`;
+    document.getElementById('sprint-btn').classList.toggle('show', st.sprintActive && st.status === 'playing' && !st.autoSweeping);
+    renderRemainBar();
+    renderGarage(st.deadlockTimer > 0);
+    renderQueue();
+    renderProps();
+  }
+
+  function renderRemainBar() {
+    const st = curState(), bar = document.getElementById('remain-bar');
+    bar.innerHTML = '';
+    for (let ci = 0; ci < 4; ci++) {
+      const cat = CATS[st.def.categories[ci]];
+      const rem = countRemainingLayers(st, ci);
+      const div = document.createElement('div');
+      div.className = 'rem-chip' + (rem === 0 ? ' done' : (rem <= 3 ? ' low' : ''));
+      div.innerHTML = `<span class="rem-dot" style="background:${cat.fill}"></span><span>${cat.short} ${rem === 0 ? '✓' : rem}</span>`;
+      bar.appendChild(div);
+    }
+  }
+
+  function renderGarage(deadlock = false) {
+    const st = curState(), box = document.getElementById('garage-slots');
+    box.innerHTML = '';
+    const actCount = activeGarageCount(st);
+    for (let i = 0; i < 6; i++) {
+      const d = document.createElement('div');
+      d.className = 'g-slot';
+      if (i === 5 && !st.expanded) {
+        d.classList.add('extra-locked');
+        d.innerHTML = `<div style="font-size:12px;font-weight:900;color:#fff3c4;">P+1</div><div style="font-size:8px;color:#ead5af;">扩车位</div>`;
+        d.onclick = useExpand;
+        box.appendChild(d); continue;
+      }
+      const slot = st.garage[i];
+      if (slot) {
+        const catId = st.def.categories[slot.color];
+        const cat = CATS[catId];
+        const dispQ = slot.unallocated + slot.outbound;
+        const working = slot.outbound + slot.returning > 0 || getReachableObs(st, slot.color).length > 0;
+        d.classList.add('occupied');
+        if (slot.vacating) d.classList.add('vacating');
+        else if (slot.isBeast) d.classList.add('beast');
+        else if (working) d.classList.add('working');
+        if (deadlock && !working && !slot.vacating) d.classList.add('deadlock-shake');
+
+        const tag = slot.vacating
+          ? `<span class="g-tag vac">收队</span>`
+          : (slot.isBeast ? `<span class="g-tag beast">🔥巨兽</span>` : (!working ? `<span class="g-tag wait">待通</span>` : ''));
+        d.innerHTML = `
+          <span class="g-dot" style="background:${cat.fill}"></span>
+          ${tag}
+          <img class="px ${working ? 'truck-bob' : ''}" src="${truckDataUrl(catId, slot.isBeast)}" style="width:36px;height:28px;" />
+          <span class="g-quota">${dispQ}</span>
+        `;
+      } else {
+        if (actCount === st.maxSlots - 1 && i === st.maxSlots - 1) {
+          d.classList.add('warn-last');
+          d.innerHTML = `<span style="font-size:10px;font-weight:900;color:#fde047;">余1位</span>`;
+        } else {
+          d.innerHTML = `<span style="font-size:9px;color:rgba(255,235,195,0.35);font-weight:700;">空位</span>`;
+        }
+      }
+      box.appendChild(d);
+    }
+  }
+
+  function renderQueue() {
+    const st = curState(), z = document.getElementById('zone-queue');
+    z.innerHTML = '';
+    const reach = [0,1,2,3].map(ci => getReachableObs(st, ci).length > 0);
+    const two = [0,1,2,3].map(ci => st.garage.filter(g => !g.vacating && g.color === ci && !g.isBeast).length === 2);
+
+    for (let c = 0; c < 4; c++) {
+      const col = st.columns[c], ce = document.createElement('div');
+      ce.className = 'q-col'; ce.dataset.col = c;
+      if (!col.length) {
+        ce.innerHTML = `<div class="q-empty">❄️<br>已空</div><div class="q-foot">余 0</div>`;
+        z.appendChild(ce); continue;
+      }
+      for (let r = 0; r < Math.min(3, col.length); r++) {
+        const card = col[r], el = document.createElement('div');
+        el.className = `q-card r${r}`;
+        const myst = card.mystery && r > 0, frz = card.ice > 0;
+        if (frz) el.classList.add('frozen');
+        if (r === 0) {
+          if (!frz && two[card.color]) el.classList.add('merge');
+          else if (!frz && reach[card.color]) el.classList.add('reach');
+          el.onclick = () => onTapQueue(c);
+        }
+        const catId = st.def.categories[card.color], cat = CATS[catId];
+        if (myst) {
+          el.innerHTML = `<div class="myst-cover"><span class="myst-q">?</span><span style="color:#fff;font-size:11px;font-weight:900;">${card.quota}</span></div>` +
+            (frz ? `<div class="ice-cover"><span class="ice-tag">❄×${card.ice}</span></div>` : '');
+        } else {
+          const w = r === 0 ? 34 : (r === 1 ? 26 : 22), h = r === 0 ? 26 : (r === 1 ? 20 : 17);
+          el.innerHTML = `
+            ${r === 0 && !frz && two[card.color] ? `<span class="merge-pip">🔥三合!</span>` : ''}
+            <div style="display:flex;align-items:center;gap:3px;">
+              <span style="width:${r===0?10:8}px;height:${r===0?10:8}px;border-radius:2px;background:${cat.fill};border:1.2px solid #2b180e;flex-shrink:0;"></span>
+              <img class="px" src="${truckDataUrl(catId, false)}" style="width:${w}px;height:${h}px;" />
+            </div>
+            <span class="q-num">${card.quota}</span>
+            ${frz ? `<div class="ice-cover"><span class="ice-tag">❄×${card.ice}</span></div>` : ''}
+          `;
+        }
+        ce.appendChild(el);
+      }
+      const ft = document.createElement('div'); ft.className = 'q-foot'; ft.textContent = `余 ${col.length}`;
+      ce.appendChild(ft); z.appendChild(ce);
+    }
+  }
+
+  function renderProps() {
+    const st = curState();
+    document.getElementById('cnt-wc').textContent = st.props.wc;
+    document.getElementById('cnt-ex').textContent = st.expanded ? '✓' : st.props.ex;
+    document.getElementById('cnt-sh').textContent = st.props.sh;
+    document.getElementById('cnt-fl').textContent = st.props.fl;
+    document.getElementById('prop-wildcard').disabled = st.props.wc <= 0;
+    document.getElementById('prop-expand').disabled = st.expanded || st.props.ex <= 0;
+    const left = st.columns.reduce((s, c) => s + c.length, 0);
+    document.getElementById('prop-shuffle').disabled = st.props.sh <= 0 || left <= 1;
+    document.getElementById('prop-flame').disabled = st.props.fl <= 0;
+  }
+
+  /* =========================================================
+     12. ULTRA-CRISP ORTHOGONAL MICRO-PIXEL CITY RENDERER
+  ========================================================= */
+  function resizeCanvas() {
+    const rect = document.getElementById('zone-battle').getBoundingClientRect();
+    viewW = Math.max(260, Math.floor(rect.width));
+    viewH = Math.max(260, Math.floor(rect.height));
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(viewW * dpr);
+    canvas.height = Math.round(viewH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+
+    const cols = 17, rows = 13;
+    const padTop = 12, padBot = 30; // room for top roofs/banner + south boulevard + remain micro bar
+    tileSize = Math.floor(Math.min((viewW - 4) / cols, (viewH - padTop - padBot) / rows));
+    const gw = tileSize * cols, gh = tileSize * rows;
+    gridOX = Math.floor((viewW - gw) / 2);
+    gridOY = Math.floor(padTop + (viewH - padTop - padBot - gh) / 2);
+    distStrideW = gw; // zero-gap edge-to-edge seamless horizontal city scroll!
+  }
+
+  // Draw 9 completely distinct, richly detailed Japanese micro-pixel buildings (dark vs warm-lit!)
+  function drawPixelBuilding(b, ox, oy, ts) {
+    const x = Math.round(ox + b.c * ts), y = Math.round(oy + b.r * ts);
+    const w = b.w * ts, h = b.h * ts;
+    const lit = b.lit;
+    const winCol = lit ? '#ffe27a' : '#2c3d5e';
+    const winHi = lit ? '#fff9db' : '#41557a';
+    const px = (rx, ry, rw, rh, col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(rx), Math.round(ry), Math.max(1, Math.round(rw)), Math.max(1, Math.round(rh)));
+    };
+
+    if (lit) {
+      const grad = ctx.createRadialGradient(x + w/2, y + h*0.65, 2, x + w/2, y + h*0.65, Math.max(w, h) * 1.05);
+      grad.addColorStop(0, 'rgba(255, 206, 95, 0.42)');
+      grad.addColorStop(1, 'rgba(255, 206, 95, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x - 12, y - 12, w + 24, h + 24);
+    }
+
+    // Crisp pixel ground shadow
+    px(x + 2, y + h - 1, w - 2, 3, 'rgba(15, 22, 38, 0.42)');
+
+    if (b.kind === 'park') {
+      px(x + 1, y + 1, w - 2, h - 2, '#d8e8f8');
+      px(x + 1, y + 1, w - 2, 2, '#6b4528'); px(x + 1, y + h - 3, w - 2, 2, '#6b4528');
+      px(x + 1, y + 1, 2, h - 2, '#6b4528'); px(x + w - 3, y + 1, 2, h - 2, '#6b4528');
+      // Snow bench
+      px(x + w*0.5 - 5, y + h - 8, 10, 3, '#8c5a32'); px(x + w*0.5 - 5, y + h - 9, 10, 1, '#fff');
+      // 3 crisp tiered pixel snowy pines!
+      [[0.28, 0.56], [0.72, 0.46], [0.52, 0.72]].forEach(([fx, fy]) => {
+        const tx = x + w * fx, ty = y + h * fy;
+        px(tx - 1, ty + 2, 3, 4, '#5c3a21');
+        px(tx - 6, ty - 1, 13, 4, '#1b4f3d');
+        px(tx - 5, ty - 4, 11, 4, '#246950');
+        px(tx - 3, ty - 7, 7, 4, '#2f8263');
+        px(tx - 2, ty - 9, 5, 3, '#f0f7ff'); // snow tip
+        px(tx - 4, ty - 4, 3, 1, '#e6f2ff'); px(tx + 2, ty - 1, 3, 1, '#e6f2ff');
+      });
+      if (lit) px(x + 4, y + 4, 3, 3, '#fde047');
+      return;
+    }
+
+    if (b.kind === 'fountain') {
+      px(x + 1, y + 1, w - 2, h - 2, '#aebbd0');
+      px(x + 2, y + 2, w - 4, h - 4, '#dce6f2');
+      // Octagonal stone basin
+      px(x + 5, y + 4, w - 10, h - 8, '#5b6c82');
+      px(x + 4, y + 6, w - 8, h - 12, '#5b6c82');
+      px(x + 7, y + 6, w - 14, h - 12, lit ? '#7dd3fc' : '#38bdf8');
+      px(x + 6, y + 8, w - 12, h - 16, lit ? '#bae6fd' : '#60ccf8');
+      // Animated water ripple pixel
+      const rip = Math.floor(animTime * 4) % 2;
+      px(x + w/2 - 3, y + h/2 - 4, 6, 7, '#e2e8f0');
+      px(x + w/2 - 1, y + h/2 - 7 - rip, 2, 4, '#fff');
+      px(x + w/2 - 5 - rip, y + h/2 - 1, 2, 1, '#fff');
+      px(x + w/2 + 4 + rip, y + h/2 - 1, 2, 1, '#fff');
+      return;
+    }
+
+    if (b.kind === 'shrine') {
+      px(x + 1, y + 1, w - 2, h - 2, '#dceaf8');
+      // Tiny stone steps
+      px(x + w/2 - 5, y + h - 5, 10, 4, '#94a3b8');
+      // Snowy evergreen behind shrine
+      px(x + 4, y + 4, 8, 8, '#1f5e47'); px(x + 5, y + 3, 6, 3, '#f4f9ff');
+      px(x + w - 12, y + 4, 8, 8, '#1f5e47'); px(x + w - 11, y + 3, 6, 3, '#f4f9ff');
+      // Crisp Japanese Red Torii Gate
+      px(x + 4, y + 7, w - 8, 3, '#dc2626');
+      px(x + 3, y + 6, w - 6, 2, '#f8fbff'); // snow on kasagi beam
+      px(x + 6, y + 12, w - 12, 2, '#b91c1c');
+      px(x + 8, y + 10, 3, h - 14, '#dc2626');
+      px(x + w - 11, y + 10, 3, h - 14, '#dc2626');
+      px(x + 3, y + h - 8, 4, 5, '#78716c'); px(x + 4, y + h - 7, 2, 2, lit ? '#fde047' : '#334155');
+      px(x + w - 7, y + h - 8, 4, 5, '#78716c'); px(x + w - 6, y + h - 7, 2, 2, lit ? '#fde047' : '#334155');
+      return;
+    }
+
+    if (b.kind === 'station') {
+      // Railway tracks along top
+      px(x, y + 1, w, 5, '#334155');
+      for (let tx = x + 2; tx < x + w - 2; tx += 5) px(tx, y + 1, 2, 5, '#94a3b8');
+      px(x, y + 2, w, 1, '#cbd5e1'); px(x, y + 4, w, 1, '#cbd5e1');
+      // Station building + sloped snowy platform roof
+      px(x + 2, y + 7, w - 4, h - 8, '#241712');
+      px(x + 3, y + 8, w - 6, h - 10, '#e8dcc4');
+      px(x + 1, y + 7, w - 2, Math.floor(h * 0.38), '#3b5b7c');
+      px(x + 2, y + 7, w - 4, 4, '#f4f8ff');
+      for (let wx = x + 7; wx < x + w - 10; wx += 13) {
+        px(wx, y + h - 12, 8, 7, '#241712');
+        px(wx + 1, y + h - 11, 6, 5, winCol);
+        px(wx + 1, y + h - 11, 2, 2, winHi);
+      }
+      return;
+    }
+
+    const styles = {
+      ramen:  { roof: '#425166', roofHi: '#5b6f8a', wall: '#8f5d3c', trim: '#b91c1c', gable: false },
+      bakery: { roof: '#c25438', roofHi: '#de6f50', wall: '#f5dfc0', trim: '#dc2626', gable: true },
+      clock:  { roof: '#3b5a82', roofHi: '#567cad', wall: '#a8553a', trim: '#fde68a', gable: false },
+      cafe:   { roof: '#3f7356', roofHi: '#599674', wall: '#efe2c8', trim: '#2e6f4f', gable: true },
+      post:   { roof: '#7c2d3b', roofHi: '#9e3e4f', wall: '#b85342', trim: '#e2e8f0', gable: true },
+      bath:   { roof: '#346496', roofHi: '#4e84bd', wall: '#8f6647', trim: '#d97706', gable: true },
+      mart:   { roof: '#cbd5e1', roofHi: '#f8fafc', wall: '#f8fafc', trim: '#16a34a', gable: false },
+    };
+    const st = styles[b.kind] || styles.bakery;
+
+    // Wall base with dark pixel outline & vertical timber posts
+    const roofH = Math.round(h * 0.48);
+    px(x + 2, y + roofH - 2, w - 4, h - roofH + 1, '#241712');
+    px(x + 3, y + roofH - 1, w - 6, h - roofH - 1, st.wall);
+    // Warm timber side pillars
+    px(x + 3, y + roofH, 2, h - roofH - 2, 'rgba(56, 30, 14, 0.35)');
+    px(x + w - 5, y + roofH, 2, h - roofH - 2, 'rgba(56, 30, 14, 0.35)');
+
+    // Stepped gabled pixel roof vs tiled eave roof!
+    if (st.gable) {
+      for (let step = 0; step < 4; step++) {
+        const inset = (3 - step) * 3;
+        const ry = y - 2 + step * Math.ceil(roofH / 4);
+        const rw = Math.max(8, w - inset * 2);
+        px(x + inset, ry, rw, Math.ceil(roofH / 4) + 1, '#241712');
+        px(x + inset + 1, ry + 1, rw - 2, Math.ceil(roofH / 4), step < 2 ? '#f4f8ff' : st.roof);
+      }
+      // Scalloped snow eaves overhang
+      px(x + 1, y + roofH - 3, w - 2, 3, st.roofHi);
+      px(x + 2, y + roofH - 4, w - 4, 2, '#f8fbff');
+    } else {
+      px(x + 1, y + 1, w - 2, roofH, '#241712');
+      px(x + 2, y + 2, w - 4, roofH - 2, st.roof);
+      px(x + 3, y + 2, w - 6, Math.max(4, Math.floor(roofH * 0.45)), '#f4f8ff');
+      // Pixel tile ridges
+      for (let rx = x + 5; rx < x + w - 4; rx += 5) px(rx, y + roofH - 5, 1, 4, 'rgba(0,0,0,0.22)');
+    }
+
+    // Distinct architectural signature details
+    if (b.kind === 'clock') {
+      const tw = Math.round(w * 0.46), tx = Math.round(x + (w - tw) / 2);
+      px(tx, y - 9, tw, h + 7, '#241712');
+      px(tx + 1, y - 8, tw - 2, h + 5, st.wall);
+      // Pointed snowy spire
+      px(tx - 1, y - 10, tw + 2, 4, st.roof);
+      px(tx + 2, y - 13, tw - 4, 4, '#f8fbff');
+      px(x + w/2 - 1, y - 16, 2, 4, '#fde047');
+      // Glowing clock dial
+      px(x + w/2 - 5, y - 3, 10, 10, '#241712');
+      px(x + w/2 - 4, y - 2, 8, 8, lit ? '#fef08a' : '#dce6f2');
+      px(x + w/2 - 1, y, 1, 3, '#1e293b'); px(x + w/2, y + 2, 3, 1, '#1e293b');
+      // Arched wooden door
+      px(x + w/2 - 4, y + h - 10, 8, 8, '#3b2012');
+      px(x + w/2 - 3, y + h - 9, 6, 5, winCol);
+    } else if (b.kind === 'ramen') {
+      // Glowing shoji window + red noren curtains + warm hanging paper lantern
+      px(x + 6, y + h - 13, w - 12, 10, '#241712');
+      px(x + 7, y + h - 12, w - 14, 8, winCol);
+      for (let k = 0; k < 3; k++) px(x + 8 + k * Math.floor((w - 14) / 3), y + h - 13, Math.floor((w - 18) / 3), 5, '#b91c1c');
+      px(x + w - 7, y + h - 14, 4, 6, lit ? '#ff9f1c' : '#64748b');
+      if (lit) px(x + w - 6, y + h - 13, 2, 4, '#fef08a');
+    } else if (b.kind === 'bakery' || b.kind === 'cafe') {
+      for (let ax = x + 3; ax < x + w - 4; ax += 4) {
+        px(ax, y + roofH, 2, 4, st.trim); px(ax + 2, y + roofH, 2, 4, '#fff7ed');
+      }
+      const ww = Math.max(6, Math.floor(w * 0.28));
+      px(x + 5, y + h - 10, ww, 7, '#241712'); px(x + 6, y + h - 9, ww - 2, 5, winCol);
+      px(x + w - 5 - ww, y + h - 10, ww, 7, '#241712'); px(x + w - 4 - ww, y + h - 9, ww - 2, 5, winCol);
+      px(x + w/2 - 3, y + h - 9, 6, 7, '#5c331a'); // wooden door
+    } else if (b.kind === 'bath') {
+      // Tall brick sento chimney!
+      px(x + w - 9, y - 8, 6, 14, '#241712');
+      px(x + w - 8, y - 7, 4, 12, '#a84a36');
+      px(x + w - 9, y - 8, 6, 2, '#f8fbff');
+      px(x + 6, y + h - 10, w - 12, 7, '#241712');
+      px(x + 7, y + h - 9, w - 14, 5, winCol);
+    } else if (b.kind === 'mart') {
+      px(x + 2, y + roofH - 1, w - 4, 2, '#f97316');
+      px(x + 2, y + roofH + 1, w - 4, 2, '#16a34a');
+      px(x + 2, y + roofH + 3, w - 4, 2, '#dc2626');
+      px(x + 5, y + h - 10, w - 10, 8, '#241712');
+      px(x + 6, y + h - 9, w - 12, 6, lit ? '#fef9c3' : '#94a3b8');
+    } else {
+      // Red brick post office with cozy windows & red postbox
+      px(x + 5, y + h - 10, 7, 7, '#241712'); px(x + 6, y + h - 9, 5, 5, winCol);
+      px(x + w - 12, y + h - 10, 7, 7, '#241712'); px(x + w - 11, y + h - 9, 5, 5, winCol);
+      px(x + w - 5, y + h - 8, 4, 6, '#dc2626');
+    }
+  }
+
+  // Helper: organic rounded pixel fill (trims exposed convex corners so drifts never look like flat squares!)
+  function fillOrganicRect(x, y, w, h, cutNW, cutNE, cutSW, cutSE, col) {
+    if (w <= 0 || h <= 0) return;
+    ctx.fillStyle = col;
+    const c = (w >= 14 && h >= 14) ? 2 : 1;
+    // Center horizontal band (full width)
+    const topTrim = (cutNW || cutNE) ? c : 0;
+    const botTrim = (cutSW || cutSE) ? c : 0;
+    ctx.fillRect(x, y + topTrim, w, Math.max(0, h - topTrim - botTrim));
+    // Top cap
+    if (topTrim > 0) {
+      const lx = x + (cutNW ? c : 0);
+      const rx = x + w - (cutNE ? c : 0);
+      if (rx > lx) ctx.fillRect(lx, y, rx - lx, topTrim);
+      // 1px intermediate shoulder for soft pixel curve
+      if (c >= 2) {
+        const lx1 = x + (cutNW ? 1 : 0);
+        const rx1 = x + w - (cutNE ? 1 : 0);
+        if (rx1 > lx1) ctx.fillRect(lx1, y + 1, rx1 - lx1, 1);
+      }
+    }
+    // Bottom cap
+    if (botTrim > 0) {
+      const lx = x + (cutSW ? c : 0);
+      const rx = x + w - (cutSE ? c : 0);
+      if (rx > lx) ctx.fillRect(lx, y + h - botTrim, rx - lx, botTrim);
+      if (c >= 2) {
+        const lx1 = x + (cutSW ? 1 : 0);
+        const rx1 = x + w - (cutSE ? 1 : 0);
+        if (rx1 > lx1) ctx.fillRect(lx1, y + h - 2, rx1 - lx1, 1);
+      }
+    }
+  }
+
+  // Handcrafted pixel-art surface motif for each obstacle type (White Snow / Blue Ice / Purple Frost / Brown Slush / Pine Branches / Market Boxes)
+  function drawObsPixelTexture(catIdx, rx, ry, rw, rh, seed, sameN, sameS, sameW, sameE) {
+    const px = (dx, dy, dw, dh, col) => {
+      const ax = Math.round(rx + dx), ay = Math.round(ry + dy);
+      const aw = Math.max(1, Math.round(dw)), ah = Math.max(1, Math.round(dh));
+      // Keep cleanly within cell bounds
+      if (ax + aw <= rx || ax >= rx + rw || ay + ah <= ry || ay >= ry + rh) return;
+      ctx.fillStyle = col;
+      ctx.fillRect(ax, ay, aw, ah);
+    };
+    const v = seed % 3;
+    const cx = Math.floor(rw * 0.5), cy = Math.floor(rh * 0.5);
+
+    if (catIdx === 0) {
+      // 0: 白松雪 — Fluffy pillowy snowdrifts with soft curved ridge arcs, sky-blue shadows & shimmering snow glints
+      if (v === 0) {
+        // Twin soft snow pillows
+        px(3, 4, Math.floor(rw*0.42), 3, '#ffffff');
+        px(4, 3, Math.floor(rw*0.32), 2, '#ffffff');
+        px(3, 8, Math.floor(rw*0.42), 2, '#cfe0f3');
+        px(5, 10, Math.floor(rw*0.3), 1, '#b6cde6');
+        px(cx + 1, cy + 1, Math.floor(rw*0.36), 3, '#ffffff');
+        px(cx + 2, cy + 4, Math.floor(rw*0.32), 2, '#cfe0f3');
+        px(4, rh - 6, 2, 2, '#ffffff');
+      } else if (v === 1) {
+        // Wind-swept snow wave crescent
+        px(3, 5, rw - 7, 2, '#ffffff');
+        px(5, 4, rw - 11, 1, '#ffffff');
+        px(4, 8, rw - 9, 2, '#d1e2f4');
+        px(6, cy + 3, rw - 11, 2, '#ffffff');
+        px(8, cy + 5, rw - 14, 1, '#bdd2ea');
+        px(rw - 6, 4, 2, 2, '#ffffff');
+      } else {
+        // Fluffy center dome + specular snow sparkles
+        px(cx - 5, cy - 3, 10, 4, '#ffffff');
+        px(cx - 3, cy - 5, 6, 2, '#ffffff');
+        px(cx - 4, cy + 2, 9, 2, '#c8dbf0');
+        px(cx - 2, cy + 4, 6, 1, '#aec7e3');
+        px(4, 4, 2, 2, '#ffffff');
+        px(rw - 6, rh - 7, 2, 2, '#ffffff');
+      }
+      // Subtle snow sparkle speck
+      if ((seed & 7) === 1) px(cx + 3, 4, 1, 1, '#ffffff');
+    } else if (catIdx === 1) {
+      // 1: 蓝冻冰 — Translucent faceted glacial ice with 45° glass reflection streaks & angular fracture cracks
+      // Diagonal crystalline glass glint (parallel bright white/ice-cyan stair-step)
+      for (let i = 0; i < 6; i++) {
+        px(4 + i * 2, 4 + i * 2, 2, 2, i % 2 === 0 ? '#f0fcff' : '#bae6fd');
+      }
+      for (let i = 0; i < 4; i++) {
+        px(10 + i * 2, 3 + i * 2, 1, 2, '#e0f7ff');
+      }
+      // Deep glacial facet plane & crisp angular ice crack
+      if (v === 0) {
+        px(cx - 2, cy + 1, 2, 4, '#136b9e');
+        px(cx, cy + 4, 4, 2, '#136b9e');
+        px(cx + 3, cy + 5, 2, 3, '#0e527d');
+        px(cx - 1, cy + 1, 1, 3, '#d6f5ff'); // bright rim next to crack
+      } else if (v === 1) {
+        px(4, cy + 2, 5, 1, '#126496');
+        px(8, cy + 3, 3, 2, '#126496');
+        px(10, cy + 5, 4, 1, '#0d4e78');
+        px(4, cy + 1, 5, 1, '#d8f6ff');
+      } else {
+        // Faceted ice polygon shimmer
+        px(3, rh - 8, rw - 6, 3, '#38b2eb');
+        px(cx + 2, 4, 4, 4, '#9ee6ff');
+        px(cx + 3, 5, 2, 2, '#ffffff');
+        px(5, cy + 2, 2, 5, '#136a9c');
+      }
+      // Sparkling diamond glint
+      px(rw - 6, 4, 2, 2, '#ffffff');
+    } else if (catIdx === 2) {
+      // 2: 紫深霜 — Jagged amethyst rime-frost crystals & miniature 6-point pixel snowflakes!
+      // Deep crystal facet shadows
+      px(3, rh - 7, rw - 6, 3, '#7b43cc');
+      // Jagged stepped frost crystal clusters
+      if (v === 0) {
+        // Crisp 5×5 pixel frost-star / snowflake motif
+        px(cx - 1, cy - 4, 2, 8, '#f5e6ff');
+        px(cx - 4, cy - 1, 8, 2, '#f5e6ff');
+        px(cx - 3, cy - 3, 2, 2, '#d8b4fe');
+        px(cx + 1, cy - 3, 2, 2, '#d8b4fe');
+        px(cx - 3, cy + 1, 2, 2, '#d8b4fe');
+        px(cx + 1, cy + 1, 2, 2, '#d8b4fe');
+        px(cx - 1, cy - 1, 2, 2, '#ffffff');
+        // Spiky crystal shard in corner
+        px(3, 5, 2, 4, '#5a28a0'); px(4, 3, 2, 3, '#e9d5ff');
+      } else if (v === 1) {
+        // Jagged twin crystalline spires poking upward
+        px(5, 6, 4, 8, '#6f36bf'); px(6, 3, 2, 5, '#f3e0ff'); px(7, 4, 2, 7, '#c084fc');
+        px(cx + 2, 7, 4, 7, '#5e2ca8'); px(cx + 3, 4, 2, 5, '#faf0ff'); px(cx + 4, 6, 2, 6, '#d8b4fe');
+        // Small frost star
+        px(4, rh - 6, 3, 1, '#f5e8ff'); px(5, rh - 7, 1, 3, '#f5e8ff');
+      } else {
+        // Diagonal rime-frost needles + mini snowflake
+        px(4, 5, 3, 1, '#f3e2ff'); px(5, 4, 1, 3, '#f3e2ff');
+        px(rw - 8, cy + 1, 5, 1, '#f5e8ff'); px(rw - 6, cy - 1, 1, 5, '#f5e8ff');
+        px(cx - 4, cy + 2, 4, 5, '#6832b5'); px(cx - 3, cy, 2, 4, '#e4c2ff');
+        px(cx + 2, 4, 3, 5, '#733bc4'); px(cx + 3, 3, 1, 3, '#ffffff');
+      }
+      // Subtle spiky frost teeth along top exposed crest
+      if (!sameN) {
+        px(5, 0, 2, 2, '#f5e6ff');
+        px(cx + 2, 0, 2, 2, '#e9d5ff');
+      }
+    } else if (catIdx === 3) {
+      // 3: 棕雪泥 — Textured frozen winter slush & mud mound with lumpy clods, dark pebbles & mixed slush snow flecks
+      // Lumpy earthy clods
+      px(3, 5, 6, 4, '#ba712c'); px(4, 4, 4, 2, '#e3a659');
+      px(cx + 1, cy, 7, 4, '#a65d1e'); px(cx + 2, cy - 1, 4, 2, '#d99548');
+      px(4, rh - 7, 6, 3, '#7a4212');
+      // Gritty street pebbles & dark wet mud pits
+      if (v === 0) {
+        px(6, 8, 2, 2, '#4d270a'); px(cx + 4, 5, 2, 2, '#695343');
+        px(cx - 2, cy + 4, 3, 2, '#572d0c'); px(rw - 6, rh - 6, 2, 2, '#806d60');
+        // Slushy half-melted white snow streaks mixed into mud!
+        px(3, 3, 5, 2, '#e3eef7'); px(cx + 1, rh - 5, 4, 2, '#d2e2f0');
+      } else if (v === 1) {
+        px(5, cy + 1, 3, 2, '#542c0c'); px(cx + 2, 4, 2, 2, '#4d2609');
+        px(rw - 7, cy + 3, 2, 2, '#7d695b'); px(4, 4, 2, 2, '#6e5b4e');
+        px(cx - 3, 4, 6, 2, '#e8f1fa'); px(3, rh - 6, 4, 1, '#d7e6f2');
+      } else {
+        px(cx - 1, 6, 3, 2, '#4f280b'); px(4, cy + 3, 2, 2, '#786659');
+        px(cx + 4, cy + 2, 3, 2, '#592e0d');
+        px(rw - 8, 4, 5, 2, '#e5eff8'); px(5, cy - 1, 4, 2, '#d5e4f2');
+      }
+    } else if (catIdx === 4) {
+      // 4: 断枝堆 — Tangled storm-blown woody branches & spiky emerald pine-needle tufts with snow flecks
+      // Dark woody crossed twigs
+      for (let i = 0; i < 6; i++) px(4 + i * 2, rh - 6 - i, 3, 2, '#5c3317');
+      for (let i = 0; i < 4; i++) px(5 + i * 2, 5 + i * 2, 3, 2, '#7c4823');
+      // Layered spiky pine-needle clusters
+      px(3, 4, 7, 4, '#245e2d'); px(4, 3, 5, 2, '#5cb85c');
+      px(cx, 5, 8, 5, '#1e4f26'); px(cx + 1, 4, 6, 3, '#4aa34e'); px(cx + 2, 4, 4, 1, '#9be06c');
+      px(4, cy + 1, 8, 5, '#2b6e35'); px(5, cy + 1, 5, 2, '#70c464');
+      px(cx + 1, cy + 3, 7, 4, '#1b4722'); px(cx + 2, cy + 3, 4, 2, '#58b358');
+      // Dusted winter snow specks resting on pine needles
+      px(5, 3, 3, 1, '#f0f7ff');
+      px(cx + 3, cy + 1, 3, 2, '#e8f3ff');
+    } else if (catIdx === 5) {
+      // 5: 废纸箱 — Crisp miniature pixel festive market cartons/crates tied with twine & snow dusting
+      const bx = 3, by = 3, bw = rw - 6, bh = rh - 6;
+      // Box shadow & outline
+      px(bx - 1, by - 1, bw + 2, bh + 2, '#4a1019');
+      // Box lid & front face
+      px(bx, by, bw, Math.floor(bh * 0.55), '#e85464');
+      px(bx, by + Math.floor(bh * 0.55), bw, bh - Math.floor(bh * 0.55), '#b82538');
+      // Lid flap seam
+      px(bx, by + Math.floor(bh * 0.55), bw, 1, '#6b1420');
+      // Golden parcel ribbon / twine cross
+      px(bx + Math.floor(bw/2) - 1, by, 2, bh, '#fde047');
+      px(bx, by + Math.floor(bh * 0.35), bw, 2, '#facc15');
+      // Cute ribbon bow knot on top
+      px(bx + Math.floor(bw/2) - 3, by + 1, 2, 2, '#fef08a');
+      px(bx + Math.floor(bw/2) + 1, by + 1, 2, 2, '#fef08a');
+      // Light dusting of snow on one corner of the crate
+      px(bx + 1, by, 4, 2, '#f5f9ff');
+    }
+  }
+
+  // Natural snow/frost/mud banking & icicles right against building foundations & walls!
+  function drawBuildingSnowIntegration(st, b, ox, oy, ts) {
+    const rows = st.def.rows, cols = st.def.cols;
+    const px = (rx, ry, rw, rh, col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(rx), Math.round(ry), Math.max(1, Math.round(rw)), Math.max(1, Math.round(rh)));
+    };
+    const bx = Math.round(ox + b.c * ts), by = Math.round(oy + b.r * ts);
+    const bw = b.w * ts, bh = b.h * ts;
+
+    // 1. Delicate pixel icicles hanging beneath snowed-in eaves (melt away once building warms up & lights up!)
+    if (!b.lit && b.kind !== 'fountain' && b.kind !== 'park' && b.kind !== 'shrine') {
+      const eaveY = by + Math.floor(bh * 0.38);
+      for (let ix = bx + 4; ix < bx + bw - 5; ix += 7) {
+        const len = ((ix + b.c * 3) % 2 === 0) ? 4 : 2;
+        px(ix, eaveY, 1, len, '#d8f3ff');
+        if (len >= 4) px(ix, eaveY, 1, 2, '#ffffff');
+      }
+    }
+
+    // 2. South doorstep snowdrift banking UP against the building's front base wall!
+    const sr = b.r + b.h;
+    const isOpenCourtyard = (b.kind === 'park' || b.kind === 'fountain');
+    if (sr < rows) {
+      for (let dc = 0; dc < b.w; dc++) {
+        const c = b.c + dc;
+        const cell = st.grid[sr][c];
+        if (!cell || cell.type !== 'obs') continue;
+        const catIdx = st.def.categories[cell.layers[0]];
+        const cat = CATS[catIdx];
+        const cx = Math.round(ox + c * ts);
+        const wallY = by + bh;
+        // Sculpted drift piling softly up onto the building's front wall base (shallower on park/fountain stone curb)
+        const h1 = isOpenCourtyard ? 2 : (((c + b.r) % 2 === 0) ? 5 : 3);
+        const h2 = isOpenCourtyard ? 2 : (((c + b.r) % 2 === 0) ? 3 : 5);
+        px(cx, wallY - h1, Math.floor(ts * 0.56), h1 + 2, cat.fill);
+        px(cx + 1, wallY - h1 - 1, Math.floor(ts * 0.46), 2, cat.hi);
+        px(cx + Math.floor(ts * 0.44), wallY - h2, Math.ceil(ts * 0.56), h2 + 2, cat.fill);
+        px(cx + Math.floor(ts * 0.5), wallY - h2 - 1, Math.floor(ts * 0.42), 2, cat.hi);
+        // Soft shaded wall-contact shadow right beneath the snowbank lip
+        px(cx, wallY + 1, ts, 1, cat.shade);
+        if (!cell.reachable) {
+          ctx.fillStyle = THEMES[themeIdx].shadowMask;
+          ctx.fillRect(cx, wallY - Math.max(h1, h2) - 1, ts, Math.max(h1, h2) + 3);
+        }
+      }
+    }
+
+    // 3. West & East side-wall wind-blown tapered drifts hugging building flanks!
+    const drawSideBank = (edgeX, neighborC, isLeftWall) => {
+      if (neighborC < 0 || neighborC >= cols || isOpenCourtyard) return;
+      for (let dr = 0; dr < b.h; dr++) {
+        const r = b.r + dr;
+        const cell = st.grid[r][neighborC];
+        if (!cell || cell.type !== 'obs') continue;
+        const cat = CATS[st.def.categories[cell.layers[0]]];
+        const ry = Math.round(oy + r * ts);
+        // Tapered wind-blown snowdrift thicker near building base, tapering up toward roof eave
+        const baseW = dr === b.h - 1 ? 4 : 3;
+        if (isLeftWall) {
+          px(edgeX - 1, ry + 2, baseW, ts - 3, cat.fill);
+          px(edgeX, ry + 4, Math.max(1, baseW - 2), ts - 7, cat.hi);
+        } else {
+          px(edgeX - baseW + 1, ry + 2, baseW, ts - 3, cat.fill);
+          px(edgeX - baseW + 2, ry + 4, Math.max(1, baseW - 2), ts - 7, cat.hi);
+        }
+        if (!cell.reachable) {
+          ctx.fillStyle = THEMES[themeIdx].shadowMask;
+          ctx.fillRect(isLeftWall ? edgeX - 1 : edgeX - baseW + 1, ry + 2, baseW, ts - 3);
+        }
+      }
+    };
+    drawSideBank(bx, b.c - 1, true);
+    drawSideBank(bx + bw, b.c + b.w, false);
+  }
+
+  function drawDistrictChunk(st, offsetX, isActive) {
+    const th = THEMES[themeIdx];
+    const ts = tileSize, ox = Math.round(gridOX + offsetX), oy = gridOY;
+    const rows = st.def.rows, cols = st.def.cols;
+    const gw = cols * ts, gh = rows * ts;
+
+    // Precompute lit lamp positions for warm cobblestone tinting
+    const litLamps = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (st.grid[r][c].lamp && st.grid[r][c].lampLit) litLamps.push([r, c]);
+
+    // 1. Handcrafted micro-pixel cobblestone street paving (strictly inside [ox, ox + gw])
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = ox + c * ts, y = oy + r * ts;
+        const cell = st.grid[r][c];
+        let warm = 0;
+        for (const [lr, lc] of litLamps) {
+          const d = Math.hypot(lr - r, lc - c);
+          if (d < 3.6) warm = Math.max(warm, 1 - d / 3.6);
+        }
+        ctx.fillStyle = ((r + c) % 2 === 0) ? th.roadBase : th.roadAlt;
+        ctx.fillRect(x, y, ts, ts);
+        if (warm > 0.02) {
+          ctx.fillStyle = `rgba(255, 204, 96, ${warm * 0.30})`;
+          ctx.fillRect(x, y, ts, ts);
+        }
+        // Subtle staggered pixel cobblestone brick joints on cleared street
+        if (cell.type === 'empty') {
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          ctx.fillRect(x, y + Math.floor(ts * 0.5), ts, 1);
+          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.45 : 0.72)), y, 1, Math.floor(ts * 0.5));
+          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.18 : 0.38)), y + Math.floor(ts * 0.5), 1, ts - Math.floor(ts * 0.5));
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          ctx.fillRect(x + 2, y + 2, Math.floor(ts * 0.35), 1);
+          if (cell.revealPop > 0) {
+            ctx.fillStyle = `rgba(255, 245, 175, ${cell.revealPop * 0.55})`;
+            ctx.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+          }
+        }
+      }
+    }
+
+    // 2. Underground brass steam pipes (Valve -> Ice Gates)
+    for (const v of st.valves) {
+      const vx = Math.round(ox + (v.c + 0.5) * ts), vy = Math.round(oy + (v.r + 0.5) * ts);
+      for (const g of v.gates) {
+        const gx = Math.round(ox + (g.c + 0.5) * ts), gy = Math.round(oy + (g.r + 0.5) * ts);
+        ctx.strokeStyle = v.triggered ? '#fbbf24' : 'rgba(234, 118, 40, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(gx, vy); ctx.lineTo(gx, gy); ctx.stroke();
+      }
+    }
+
+    // 3. Draw Neighbor-Aware Sculpted Micro-Pixel Obstacles (Snow / Ice / Frost / Slush / Branches / Boxes)
+    const pulse = 0.5 + 0.5 * Math.sin(animTime * 4.2);
+    const getCell = (rr, cc) => (rr >= 0 && rr < rows && cc >= 0 && cc < cols) ? st.grid[rr][cc] : null;
+    const isSameTop = (rr, cc, catIdx) => {
+      const nb = getCell(rr, cc);
+      return !!(nb && nb.type === 'obs' && st.def.categories[nb.layers[0]] === catIdx);
+    };
+    const isObsCell = (rr, cc) => { const nb = getCell(rr, cc); return !!(nb && nb.type === 'obs'); };
+    const isBldgCell = (rr, cc) => { const nb = getCell(rr, cc); return !!(nb && nb.type === 'bldg'); };
+    const isOpenCell = (rr, cc) => {
+      if (rr >= rows) return true; // South cleared boulevard!
+      const nb = getCell(rr, cc);
+      return !!(nb && nb.type === 'empty');
+    };
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = st.grid[r][c];
+        const x = ox + c * ts, y = oy + r * ts;
+
+        if (cell.type === 'gate') {
+          // Sculpted crystalline frozen ice barricade gate
+          ctx.fillStyle = 'rgba(12, 32, 60, 0.32)';
+          ctx.fillRect(x + 2, y + ts - 2, ts - 3, 3);
+          fillOrganicRect(x + 1, y + 1, ts - 2, ts - 2, true, true, false, false, '#0c4a6e');
+          fillOrganicRect(x + 2, y + 2, ts - 4, ts - 4, true, true, false, false, '#38bdf8');
+          ctx.fillStyle = '#e0f7ff'; ctx.fillRect(x + 4, y + 2, ts - 8, 3);
+          // Iron/ice vertical lock bars
+          ctx.fillStyle = '#075985';
+          ctx.fillRect(x + Math.floor(ts * 0.28), y + 3, 2, ts - 6);
+          ctx.fillRect(x + Math.floor(ts * 0.66), y + 3, 2, ts - 6);
+          ctx.fillStyle = '#bae6fd';
+          ctx.fillRect(x + Math.floor(ts * 0.28) + 2, y + 4, 1, ts - 8);
+          ctx.fillRect(x + Math.floor(ts * 0.66) + 2, y + 4, 1, ts - 8);
+          continue;
+        }
+        if (cell.valveId && cell.type === 'empty') {
+          drawPixelValve(x + ts/2, y + ts/2, ts * 0.4, true);
+        }
+        if (cell.type !== 'obs') continue;
+
+        const catIdx = st.def.categories[cell.layers[0]];
+        const topCat = CATS[catIdx];
+        const isDouble = cell.layers.length >= 2;
+        const botCatIdx = isDouble ? st.def.categories[cell.layers[1]] : -1;
+        const botCat = isDouble ? CATS[botCatIdx] : null;
+        const isHetero = isDouble && botCatIdx !== catIdx;
+        const seed = ((r * 73 + c * 37 + st.def.id * 19) >>> 0);
+
+        const sameN = isSameTop(r - 1, c, catIdx);
+        const sameS = isSameTop(r + 1, c, catIdx);
+        const sameW = isSameTop(r, c - 1, catIdx);
+        const sameE = isSameTop(r, c + 1, catIdx);
+        const obsN = isObsCell(r - 1, c);
+        const obsS = isObsCell(r + 1, c);
+        const obsW = isObsCell(r, c - 1);
+        const obsE = isObsCell(r, c + 1);
+        const bldgN = isBldgCell(r - 1, c);
+        const bldgS = isBldgCell(r + 1, c);
+        const bldgW = isBldgCell(r, c - 1);
+        const bldgE = isBldgCell(r, c + 1);
+        const openN = isOpenCell(r - 1, c);
+        const openS = isOpenCell(r + 1, c);
+        const openW = isOpenCell(r, c - 1);
+        const openE = isOpenCell(r, c + 1);
+
+        // Flush seamlessly against neighboring obstacles & building walls (zero awkward 1px cobblestone cracks!);
+        // inset 1px ONLY along exposed edges facing open cleared street!
+        const rx = x + ((obsW || bldgW) ? 0 : 1);
+        const ry = y + ((obsN || bldgN) ? 0 : 1);
+        const rx1 = x + ts - ((obsE || bldgE) ? 0 : 1);
+        const ry1 = y + ts - ((obsS || bldgS) ? 0 : 1);
+        const rw = rx1 - rx, rh = ry1 - ry;
+
+        // Round off convex corners facing open road so drifts curve organically onto cobblestones!
+        const cutNW = !obsN && !obsW && !bldgN && !bldgW;
+        const cutNE = !obsN && !obsE && !bldgN && !bldgE;
+        const cutSW = !obsS && !obsW && !bldgS && !bldgW;
+        const cutSE = !obsS && !obsE && !bldgS && !bldgE;
+
+        // Ground contact shadow on exposed street below
+        if (!obsS && !bldgS) {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+          ctx.fillRect(rx + (cutSW ? 2 : 0), ry1 - 1, rw - (cutSW ? 2 : 0) - (cutSE ? 2 : 0), 3);
+        }
+
+        if (isHetero) {
+          // Heterogeneous double-layer (e.g. Snow over Ice / Mud / Branches / Boxes):
+          // Draw real bottom material peeking out along lower skirt + draped top snowdrift overhanging above!
+          fillOrganicRect(rx, ry, rw, rh, cutNW, cutNE, cutSW, cutSE, botCat.fill);
+          drawObsPixelTexture(botCatIdx, rx, ry, rw, rh, seed + 5, sameN, sameS, sameW, sameE);
+          if (!sameS && !bldgS) {
+            ctx.fillStyle = botCat.shade;
+            ctx.fillRect(rx + (cutSW ? 2 : 0), ry1 - 3, rw - (cutSW ? 2 : 0) - (cutSE ? 2 : 0), 2);
+          }
+          // Draped top snowdrift blanket covering upper ~66% with scalloped overhang edge!
+          const drapeH = Math.floor(rh * 0.66);
+          fillOrganicRect(rx, ry, rw, drapeH, cutNW, cutNE, false, false, topCat.fill);
+          ctx.fillStyle = topCat.fill;
+          ctx.fillRect(rx + 2, ry + drapeH, Math.floor(rw * 0.36), 3);
+          ctx.fillRect(rx + Math.floor(rw * 0.56), ry + drapeH, Math.floor(rw * 0.32), 2);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+          ctx.fillRect(rx + 1, ry + drapeH + 2, Math.floor(rw * 0.4), 1);
+          ctx.fillRect(rx + Math.floor(rw * 0.54), ry + drapeH + 1, Math.floor(rw * 0.36), 1);
+          drawObsPixelTexture(catIdx, rx, ry, rw, drapeH, seed, sameN, true, sameW, sameE);
+        } else {
+          // Single-layer or Same-Color x2: sculpted organic body + handcrafted pixel material texture
+          fillOrganicRect(rx, ry, rw, rh, cutNW, cutNE, cutSW, cutSE, topCat.fill);
+          drawObsPixelTexture(catIdx, rx, ry, rw, rh, seed, sameN, sameS, sameW, sameE);
+
+          // 3D front snowbank / ice-shelf / mud-ridge thickness lip on exposed south face (or softer lip where different material meets south)
+          if (!sameS && !bldgS) {
+            const lx = rx + (cutSW ? 2 : 0), lw = rw - (cutSW ? 2 : 0) - (cutSE ? 2 : 0);
+            ctx.fillStyle = topCat.shade;
+            ctx.fillRect(lx, ry1 - 3, lw, 2);
+            ctx.fillStyle = obsS ? topCat.shade : topCat.ink;
+            ctx.fillRect(lx, ry1 - 1, lw, 1);
+            // Organic scalloped overhang tufts when banking into another material south!
+            if (obsS) {
+              ctx.fillStyle = topCat.fill;
+              ctx.fillRect(rx + 3 + (seed % 4), ry1 - 1, 5, 2);
+              ctx.fillRect(rx + Math.floor(rw * 0.55), ry1 - 1, 4, 2);
+            }
+          }
+          // Bright sculpted crest highlight on exposed north face
+          if (!sameN && !bldgN) {
+            const lx = rx + (cutNW ? 2 : 0), lw = rw - (cutNW ? 2 : 0) - (cutNE ? 2 : 0);
+            ctx.fillStyle = topCat.hi;
+            ctx.fillRect(lx, ry, lw, 2);
+          }
+          // Crisp pixel edge ONLY on open-road flanks; subtle organic interlocking seam between different materials!
+          if (!sameW && !bldgW) {
+            ctx.fillStyle = obsW ? topCat.shade : topCat.ink;
+            ctx.fillRect(rx, ry + (cutNW ? 2 : 0), 1, rh - (cutNW ? 2 : 0) - (cutSW ? 2 : 0));
+          }
+          if (!sameE && !bldgE) {
+            ctx.fillStyle = obsE ? topCat.shade : topCat.ink;
+            ctx.fillRect(rx1 - 1, ry + (cutNE ? 2 : 0), 1, rh - (cutNE ? 2 : 0) - (cutSE ? 2 : 0));
+          }
+        }
+
+        // Same-color x2 thick stacked upper tier mound + crisp tiny corner pip for instant readability
+        if (isDouble && !isHetero) {
+          const tx = rx + 3, ty = ry + 1, tw = rw - 6, th2 = Math.floor(rh * 0.56);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.30)';
+          ctx.fillRect(tx, ty + th2, tw, 2);
+          fillOrganicRect(tx, ty, tw, th2, true, true, true, true, topCat.fill);
+          ctx.fillStyle = topCat.hi;
+          ctx.fillRect(tx + 2, ty, Math.max(2, tw - 4), 2);
+          ctx.fillStyle = topCat.shade;
+          ctx.fillRect(tx + 1, ty + th2 - 2, Math.max(2, tw - 2), 1);
+        }
+
+        // Crisp mini double-layer corner gem (gold for x2 same-color, bottom-color for hetero A-over-B)
+        if (isDouble) {
+          ctx.fillStyle = '#241712';
+          ctx.fillRect(x + ts - 7, y + 2, 5, 5);
+          ctx.fillStyle = isHetero ? botCat.fill : '#fde047';
+          ctx.fillRect(x + ts - 6, y + 3, 3, 3);
+        }
+
+        if (cell.valveId) drawPixelValve(x + ts/2, y + ts/2, ts * 0.36, false);
+
+        // Refined Reachability Signifier: soft dusk veil on locked interior; crisp warm edge shimmer ONLY on exposed road-facing front!
+        if (!cell.reachable) {
+          fillOrganicRect(rx, ry, rw, rh, cutNW, cutNE, cutSW, cutSE, th.shadowMask);
+        } else {
+          const edgeGlow = `rgba(255, 250, 200, ${(0.45 + pulse * 0.45).toFixed(2)})`;
+          ctx.fillStyle = edgeGlow;
+          if (openS) ctx.fillRect(rx + (cutSW ? 2 : 0), ry1 - 2, rw - (cutSW ? 2 : 0) - (cutSE ? 2 : 0), 2);
+          if (openN) ctx.fillRect(rx + (cutNW ? 2 : 0), ry, rw - (cutNW ? 2 : 0) - (cutNE ? 2 : 0), 2);
+          if (openW) ctx.fillRect(rx, ry + (cutNW ? 2 : 0), 2, rh - (cutNW ? 2 : 0) - (cutSW ? 2 : 0));
+          if (openE) ctx.fillRect(rx1 - 2, ry + (cutNE ? 2 : 0), 2, rh - (cutNE ? 2 : 0) - (cutSE ? 2 : 0));
+        }
+      }
+    }
+
+    // 4. Draw Varied Embedded Micro-Pixel Buildings + Ground Shadows + Natural Snow Banking Against Walls!
+    for (const b of st.buildings) {
+      const bx = Math.round(ox + b.c * ts), by = Math.round(oy + b.r * ts);
+      const bw = b.w * ts, bh = b.h * ts;
+      // Soft grounded drop shadow on cobblestone south & east of building
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.24)';
+      ctx.fillRect(bx + 2, by + bh, bw, 3);
+      ctx.fillRect(bx + bw, by + 3, 2, bh);
+      drawPixelBuilding(b, ox, oy, ts);
+      drawBuildingSnowIntegration(st, b, ox, oy, ts);
+    }
+
+    // 5. Micro-Pixel Strolling Townsfolk
+    for (const res of st.residents) {
+      const rx = Math.round(ox + (res.x + 0.5) * ts), ry = Math.round(oy + (res.y + 0.68) * ts);
+      const bob = Math.round(Math.abs(Math.sin(res.phase)) * 1.5);
+      ctx.fillStyle = '#1e1b18'; ctx.fillRect(rx - 3, ry - 9 - bob, 6, 9);
+      ctx.fillStyle = res.coat; ctx.fillRect(rx - 2, ry - 5 - bob, 4, 4);
+      ctx.fillStyle = res.scarf; ctx.fillRect(rx - 2, ry - 6 - bob, 4, 2);
+      ctx.fillStyle = '#fde2c4'; ctx.fillRect(rx - 2, ry - 9 - bob, 4, 3);
+    }
+
+    // 6. Dispatched 4-Direction Crisp Pixel Vehicles (ONLY when player tapped cards!)
+    const sorted = [...st.units].sort((a, b) => a.y - b.y);
+    for (const u of sorted) {
+      const ux = Math.round(ox + (u.x + 0.5) * ts), uy = Math.round(oy + (u.y + 0.5) * ts);
+      // Warm night headlight cone
+      ctx.save();
+      const hl = ctx.createRadialGradient(ux, uy, 2, ux, uy, ts * 1.25);
+      hl.addColorStop(0, u.isBeast ? 'rgba(255, 224, 110, 0.55)' : 'rgba(255, 240, 170, 0.36)');
+      hl.addColorStop(1, 'rgba(255, 230, 140, 0)');
+      ctx.fillStyle = hl; ctx.fillRect(ux - ts*1.3, uy - ts*1.3, ts*2.6, ts*2.6);
+
+      const dw = Math.round(ts * (u.isBeast ? 1.25 : 1.08));
+      if (u.dir === 'up' || u.dir === 'down') {
+        const spr = createVertTruckCanvas(u.catId, u.dir, u.isBeast, u.isWildcard);
+        ctx.drawImage(spr, Math.round(ux - dw*0.44), Math.round(uy - dw*0.52), Math.round(dw*0.88), Math.round(dw*1.04));
+      } else {
+        const spr = createSideTruckCanvas(u.catId, u.isBeast, u.isWildcard);
+        ctx.translate(ux, uy);
+        if (u.dir === 'left') ctx.scale(-1, 1);
+        ctx.drawImage(spr, Math.round(-dw*0.55), Math.round(-dw*0.44), Math.round(dw*1.1), Math.round(dw*0.86));
+      }
+      ctx.restore();
+    }
+
+    // 7. Crisp Pixel Streetlamps
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = st.grid[r][c];
+        if (!cell.lamp) continue;
+        const lx = Math.round(ox + (c + 0.86) * ts), ly = Math.round(oy + (r + 0.85) * ts);
+        const h = Math.round(ts * 1.15);
+        if (cell.lampLit) {
+          const g = ctx.createRadialGradient(lx, ly - h, 1, lx, ly - h, ts * 1.85);
+          g.addColorStop(0, th.lampHalo); g.addColorStop(1, 'rgba(255,200,80,0)');
+          ctx.fillStyle = g; ctx.fillRect(lx - ts*2, ly - h - ts*2, ts*4, ts*4);
+        }
+        ctx.fillStyle = '#241712'; ctx.fillRect(lx - 1, ly - h, 2, h);
+        ctx.fillStyle = cell.lampLit ? '#fef08a' : '#475569';
+        ctx.fillRect(lx - 2, ly - h - 3, 4, 4);
+      }
+    }
+
+    // 8. Aim Reticle & Fireballs (active district only)
+    if (isActive && st.aimMode && hoverTile) {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const nr = hoverTile.r + dr, nc = hoverTile.c + dc;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.36)';
+        ctx.fillRect(ox + nc * ts, oy + nr * ts, ts, ts);
+        ctx.strokeStyle = '#fde047'; ctx.lineWidth = 1.5;
+        ctx.strokeRect(ox + nc * ts + 0.5, oy + nr * ts + 0.5, ts - 1, ts - 1);
+      }
+    }
+    for (const fb of st.fireballs) {
+      ctx.fillStyle = '#f97316'; ctx.fillRect(fb.x - 5, fb.y - 5, 10, 10);
+      ctx.fillStyle = '#fef08a'; ctx.fillRect(fb.x - 3, fb.y - 3, 6, 6);
+    }
+
+    // 9. Crisp Pixel Particles & Float Labels
+    for (const p of st.particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(Math.round(p.x + offsetX), Math.round(p.y), p.sz, p.sz);
+    }
+    ctx.globalAlpha = 1;
+    for (const f of st.floats) {
+      ctx.globalAlpha = Math.min(1, f.life / (f.maxLife * 0.4));
+      ctx.font = '900 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.strokeStyle = '#24140c'; ctx.lineWidth = 3;
+      ctx.strokeText(f.text, f.x + offsetX, f.y);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x + offsetX, f.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawPixelValve(cx, cy, r, open) {
+    const x = Math.round(cx), y = Math.round(cy), s = Math.max(4, Math.round(r));
+    ctx.fillStyle = '#24140c'; ctx.fillRect(x - s - 1, y - s - 1, s*2 + 2, s*2 + 2);
+    ctx.fillStyle = open ? '#fbbf24' : '#dc2626'; ctx.fillRect(x - s, y - s, s*2, s*2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(x - s + 1, y - 1, s*2 - 2, 2);
+    ctx.fillRect(x - 1, y - s + 1, 2, s*2 - 2);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, viewW, viewH);
+    const st = curState(); if (!st) return;
+    const th = THEMES[themeIdx];
+    const rows = st.def.rows, cols = st.def.cols;
+    const ts = tileSize, gw = cols * ts, gh = rows * ts;
+
+    ctx.save();
+    if (st.trauma > 0) {
+      const s = st.trauma * st.trauma * 6;
+      ctx.translate(Math.round(Math.sin(st.shakeT*1.7)*s), Math.round(Math.sin(st.shakeT*2.3)*s));
+    }
+
+    // 0. Unified continuous city-scroll backdrop (zero blank seams between districts!)
+    ctx.fillStyle = th.snowBg;
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = th.sky;
+    ctx.fillRect(0, 0, viewW, Math.max(4, gridOY - 1));
+
+    // Natural cobblestone street continuation past leftmost & rightmost scroll boundaries
+    const firstLeft = Math.round(gridOX - camX * distStrideW);
+    const lastRight = Math.round(gridOX + (districtStates.length - camX) * distStrideW);
+    const drawSideStreet = (sx, sw) => {
+      if (sw <= 0) return;
+      for (let r = 0; r < rows; r++) {
+        ctx.fillStyle = (r % 2 === 0) ? th.roadBase : th.roadAlt;
+        ctx.fillRect(sx, gridOY + r * ts, sw, ts);
+        // Snowy sidewalk snowbank texture along outer avenue edge
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.fillRect(sx, gridOY + r * ts + 2, sw, Math.max(2, ts - 4));
+      }
+    };
+    if (firstLeft > 0) drawSideStreet(0, firstLeft);
+    if (lastRight < viewW) drawSideStreet(lastRight, viewW - lastRight);
+
+    // Continuous unbroken south cobblestone boulevard + gliding dashed lane line
+    ctx.fillStyle = th.curb;
+    ctx.fillRect(0, gridOY + gh, viewW, 14);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.fillRect(0, gridOY + gh, viewW, 1);
+    ctx.fillStyle = 'rgba(255, 232, 168, 0.5)';
+    const dashStep = 12;
+    const dashOff = ((-Math.round(camX * distStrideW) % dashStep) + dashStep) % dashStep;
+    for (let dx = dashOff - dashStep; dx < viewW; dx += dashStep) {
+      ctx.fillRect(dx, gridOY + gh + 6, 6, 2);
+    }
+
+    // 1. Chunked Horizontal Viewport Culling (edge-to-edge zero-gap city blocks!)
+    for (let i = 0; i < districtStates.length; i++) {
+      const offsetX = (i - camX) * distStrideW;
+      if (offsetX + distStrideW < -viewW * 0.25 || offsetX > viewW * 1.25) continue;
+      drawDistrictChunk(districtStates[i], offsetX, i === activeIdx);
+    }
+
+    // 2. Natural stone-curb & crosswalk transition seam between adjacent districts
+    for (let i = 0; i < districtStates.length - 1; i++) {
+      const seamX = Math.round(gridOX + (i + 1 - camX) * distStrideW);
+      if (seamX < -16 || seamX > viewW + 16) continue;
+      // Subtle recessed stone avenue seam
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.22)';
+      ctx.fillRect(seamX - 1, gridOY, 2, gh);
+      // Crisp mini crosswalk stripes along the south avenue intersection
+      ctx.fillStyle = 'rgba(255, 248, 224, 0.58)';
+      for (let sy = gridOY + gh + 2; sy < gridOY + gh + 13; sy += 3) {
+        ctx.fillRect(seamX - 4, sy, 8, 2);
+      }
+      // Subtle stone pavement marker ticks along the block seam
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.26)';
+      for (let r = 0; r < rows; r++) {
+        ctx.fillRect(seamX - 1, gridOY + r * ts + Math.floor(ts * 0.35), 2, Math.max(3, Math.floor(ts * 0.3)));
+      }
+    }
+
+    // Gentle side framing veil on neighboring peek margins while settled on active district
+    const glideAlpha = Math.max(0, 1 - Math.abs(camX - activeIdx) * 6);
+    if (glideAlpha > 0.01 && gridOX > 0) {
+      ctx.fillStyle = `rgba(15, 23, 42, ${(0.14 * glideAlpha).toFixed(3)})`;
+      ctx.fillRect(0, gridOY, gridOX, gh);
+      const rightStart = gridOX + gw;
+      if (rightStart < viewW) ctx.fillRect(rightStart, gridOY, viewW - rightStart, gh);
+    }
+
+    // 3. Crisp 1-2px ambient pixel snow
+    ctx.fillStyle = th.snowFlake;
+    for (const f of flakes) ctx.fillRect(Math.round(f.x * viewW), Math.round(f.y * viewH), f.r, f.r);
+
+    // 4. Golden warm sprint frame glow
+    if (st.sprintActive && st.status === 'playing') {
+      ctx.strokeStyle = `rgba(253, 224, 71, ${0.4 + 0.3 * Math.sin(animTime * 6)})`;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, viewW - 4, viewH - 4);
+    }
+    ctx.restore();
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastFrame) / 1000);
+    lastFrame = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  /* =========================================================
+     13. INPUT & EVENT WIRING (Scroll strictly locked during play)
+  ========================================================= */
+  function evtToTile(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+    const c = Math.floor((cx - rect.left - gridOX) / tileSize);
+    const r = Math.floor((cy - rect.top - gridOY) / tileSize);
+    const st = curState();
+    if (r >= 0 && r < st.def.rows && c >= 0 && c < st.def.cols) return { r, c };
+    return null;
+  }
+
+  canvas.addEventListener('pointerdown', ev => {
+    if (curState().aimMode) {
+      const t = evtToTile(ev);
+      if (t) dropFlame(t.r, t.c); else toggleAim(false);
+    }
+  });
+  canvas.addEventListener('pointermove', ev => {
+    hoverTile = curState().aimMode ? evtToTile(ev) : null;
+  });
+  canvas.addEventListener('pointerleave', () => { hoverTile = null; });
+
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    const shell = document.getElementById('app-shell');
+    shell.className = THEMES[themeIdx].css;
+    document.getElementById('btn-theme').textContent = THEMES[themeIdx].label;
+  });
+  document.getElementById('btn-sound').addEventListener('click', () => {
+    sfx.muted = !sfx.muted; document.getElementById('btn-sound').textContent = sfx.muted ? '🔇' : '🔊';
+  });
+  document.getElementById('btn-restart').addEventListener('click', restartCurrentDistrict);
+  document.getElementById('aim-cancel').addEventListener('click', () => toggleAim(false));
+  document.getElementById('sprint-btn').addEventListener('click', () => {
+    const st = curState(); st.autoSweeping = true; st.autoCd = 0;
+    document.getElementById('sprint-btn').classList.remove('show');
+  });
+
+  document.getElementById('prop-wildcard').addEventListener('click', useWildcard);
+  document.getElementById('prop-expand').addEventListener('click', useExpand);
+  document.getElementById('prop-shuffle').addEventListener('click', useShuffle);
+  document.getElementById('prop-flame').addEventListener('click', () => toggleAim());
+
+  document.getElementById('res-ex').addEventListener('click', useExpand);
+  document.getElementById('res-wc').addEventListener('click', useWildcard);
+  document.getElementById('res-fl').addEventListener('click', () => toggleAim(true));
+  document.getElementById('res-sh').addEventListener('click', useShuffle);
+  document.getElementById('res-re').addEventListener('click', restartCurrentDistrict);
+
+  document.getElementById('win-re').addEventListener('click', restartCurrentDistrict);
+  document.getElementById('win-next').addEventListener('click', () => selectDistrict((activeIdx + 1) % DISTRICTS.length, false));
+
+  window.addEventListener('resize', resizeCanvas);
+
+  initAllDistricts();
+  resizeCanvas();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
