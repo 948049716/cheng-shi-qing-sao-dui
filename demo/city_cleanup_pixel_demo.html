@@ -34,13 +34,13 @@
       #app-shell { width: 100vw; height: 100vh; border-radius: 0; border: none; box-shadow: none; }
     }
 
-    /* THEME TOKENS: Nordic Morning / Showa Dusk / Indigo Night */
+    /* THEME TOKENS: Stardew Winter Morning / Showa Dusk / Indigo Night */
     #app-shell.theme-nordic {
-      --top-bg: #a7cce8;
-      --wood-hi: #d8a76e; --wood-mid: #b68049; --wood-lo: #8c5c2e; --wood-ink: #4a2e16;
-      --tray-bg: #c9975f; --tray-slot: #9e6e3e; --tray-slot-occ: #fff7e6;
-      --q-bg: #b4824c; --q-col: #f6ebd5; --q-card0: #fffdf6; --q-card1: #e2d1b2; --q-card2: #c9b592;
-      --prop-bg: #9f6f3e; --pill-text: #3a210f;
+      --top-bg: #9ac0de;
+      --wood-hi: #d69c5a; --wood-mid: #a86a34; --wood-lo: #75421b; --wood-ink: #381b0a;
+      --tray-bg: #b87b42; --tray-slot: #875126; --tray-slot-occ: #fbf0d9;
+      --q-bg: #9c6230; --q-col: #f6e7cb; --q-card0: #fdf4e1; --q-card1: #e4cfa9; --q-card2: #c9b086;
+      --prop-bg: #7e4a21; --pill-text: #381b0a;
     }
     #app-shell.theme-showa {
       --top-bg: #584361;
@@ -522,35 +522,35 @@
   const THEMES = [
     {
       id: 'nordic', label: '🎨晨雪', css: 'theme-nordic',
-      sky: '#b5d6ee', roadBase: '#8f99a8', roadAlt: '#848e9d', roadWarm: [72, 54, 18],
-      snowBg: '#dcecf7', curb: '#6b7788', shadowMask: 'rgba(65, 92, 130, 0.28)',
-      lampHalo: 'rgba(255, 208, 102, 0.52)', snowFlake: 'rgba(255,255,255,0.85)'
+      sky: '#a2c6e2', roadBase: '#8f8880', roadAlt: '#847d75', roadWarm: [78, 56, 18],
+      snowBg: '#e2eef8', curb: '#6c5c50', shadowMask: 'rgba(54, 72, 108, 0.27)',
+      lampHalo: 'rgba(255, 204, 92, 0.56)', snowFlake: 'rgba(255,252,242,0.88)'
     },
     {
       id: 'showa', label: '🎨昭和', css: 'theme-showa',
-      sky: '#5d4766', roadBase: '#6f6770', roadAlt: '#645c66', roadWarm: [85, 52, 12],
-      snowBg: '#cfd5e6', curb: '#4b434d', shadowMask: 'rgba(42, 26, 52, 0.36)',
+      sky: '#5d4766', roadBase: '#6f656a', roadAlt: '#645b60', roadWarm: [85, 52, 12],
+      snowBg: '#cfd5e6', curb: '#4b4146', shadowMask: 'rgba(42, 26, 52, 0.35)',
       lampHalo: 'rgba(255, 190, 88, 0.68)', snowFlake: 'rgba(255,244,230,0.75)'
     },
     {
       id: 'indigo', label: '🎨星夜', css: 'theme-indigo',
-      sky: '#18284d', roadBase: '#4b556b', roadAlt: '#434c61', roadWarm: [96, 62, 14],
-      snowBg: '#273758', curb: '#2f384c', shadowMask: 'rgba(12, 20, 46, 0.42)',
+      sky: '#18284d', roadBase: '#4b5266', roadAlt: '#434a5c', roadWarm: [96, 62, 14],
+      snowBg: '#273758', curb: '#2f3547', shadowMask: 'rgba(12, 20, 46, 0.42)',
       lampHalo: 'rgba(255, 214, 105, 0.80)', snowFlake: 'rgba(255,255,255,0.72)'
     }
   ];
   let themeIdx = 0;
 
   /* =========================================================
-     2. OBSTACLE & VEHICLE CATALOG (Snow + Late-game Trash!)
+     2. OBSTACLE & VEHICLE CATALOG (Stardew Hue-Shifted Palettes!)
   ========================================================= */
   const CATS = {
-    0: { name: '白松雪', short: '白', fill: '#f5f8fc', hi: '#ffffff', shade: '#b7c8de', ink: '#4d6078', truck: '#f95634', truckDark: '#b91c1c', kind: 'plow' },
-    1: { name: '蓝冻冰', short: '冰', fill: '#5ac8fa', hi: '#d6f4ff', shade: '#1f88c9', ink: '#1d4f78', truck: '#0ea5e9', truckDark: '#0369a1', kind: 'plow' },
-    2: { name: '紫深霜', short: '霜', fill: '#a56ef2', hi: '#ebd8ff', shade: '#6834b5', ink: '#3c1e6e', truck: '#8b5cf6', truckDark: '#5b21b6', kind: 'plow' },
-    3: { name: '棕雪泥', short: '泥', fill: '#d48a38', hi: '#fce0a8', shade: '#8f5014', ink: '#4d2a0c', truck: '#b45309', truckDark: '#78350f', kind: 'grab' },
-    4: { name: '断枝堆', short: '枝', fill: '#5b8c2a', hi: '#a3d165', shade: '#365a15', ink: '#22380e', truck: '#22a055', truckDark: '#14532d', kind: 'sweep' },
-    5: { name: '废纸箱', short: '箱', fill: '#e0485a', hi: '#fda4af', shade: '#9e1c2f', ink: '#57121c', truck: '#dc2626', truckDark: '#7f1d1d', kind: 'trash' },
+    0: { name: '白松雪', short: '白', fill: '#f4f7fc', hi: '#fffef9', shade: '#b3c6df', ink: '#465872', truck: '#e85236', truckDark: '#a62617', kind: 'plow' },
+    1: { name: '蓝冻冰', short: '冰', fill: '#64c6ea', hi: '#dcf8ff', shade: '#2a85b5', ink: '#1d486b', truck: '#189ad6', truckDark: '#0b5c8a', kind: 'plow' },
+    2: { name: '紫深霜', short: '霜', fill: '#9b6ad6', hi: '#ecd9ff', shade: '#60369c', ink: '#381d5e', truck: '#8352cc', truckDark: '#51248f', kind: 'plow' },
+    3: { name: '棕雪泥', short: '泥', fill: '#c27a39', hi: '#f0c48d', shade: '#7d461a', ink: '#45240b', truck: '#ad5616', truckDark: '#6e3209', kind: 'grab' },
+    4: { name: '断枝堆', short: '枝', fill: '#4f8633', hi: '#a2d166', shade: '#2f541c', ink: '#1d3610', truck: '#24964f', truckDark: '#13542b', kind: 'sweep' },
+    5: { name: '废纸箱', short: '箱', fill: '#d44b4b', hi: '#f7b2a8', shade: '#8c2424', ink: '#4d1313', truck: '#c92e2e', truckDark: '#731616', kind: 'trash' },
   };
 
   const CFG = {
@@ -1913,190 +1913,229 @@
     distStrideW = gw; // zero-gap edge-to-edge seamless horizontal city scroll!
   }
 
-  // Draw 9 completely distinct, richly detailed Japanese micro-pixel buildings (dark vs warm-lit!)
+  // Draw 10 distinct Stardew-Valley-inspired micro-pixel winter buildings (warm umber ink, shingled roofs, wood grain, stone masonry!)
   function drawPixelBuilding(b, ox, oy, ts) {
     const x = Math.round(ox + b.c * ts), y = Math.round(oy + b.r * ts);
     const w = b.w * ts, h = b.h * ts;
     const lit = b.lit;
-    const winCol = lit ? '#ffe27a' : '#2c3d5e';
-    const winHi = lit ? '#fff9db' : '#41557a';
+    const INK = '#3a2117';
+    const winCol = lit ? '#ffdd6b' : '#2d3b59';
+    const winHi = lit ? '#fff8cc' : '#4a5f87';
     const px = (rx, ry, rw, rh, col) => {
       ctx.fillStyle = col;
       ctx.fillRect(Math.round(rx), Math.round(ry), Math.max(1, Math.round(rw)), Math.max(1, Math.round(rh)));
     };
 
     if (lit) {
-      const grad = ctx.createRadialGradient(x + w/2, y + h*0.65, 2, x + w/2, y + h*0.65, Math.max(w, h) * 1.05);
-      grad.addColorStop(0, 'rgba(255, 206, 95, 0.42)');
-      grad.addColorStop(1, 'rgba(255, 206, 95, 0)');
+      const grad = ctx.createRadialGradient(x + w/2, y + h*0.65, 2, x + w/2, y + h*0.65, Math.max(w, h) * 1.1);
+      grad.addColorStop(0, 'rgba(255, 198, 84, 0.45)');
+      grad.addColorStop(1, 'rgba(255, 198, 84, 0)');
       ctx.fillStyle = grad;
-      ctx.fillRect(x - 12, y - 12, w + 24, h + 24);
+      ctx.fillRect(x - 14, y - 14, w + 28, h + 28);
     }
 
-    // Crisp pixel ground shadow
-    px(x + 2, y + h - 1, w - 2, 3, 'rgba(15, 22, 38, 0.42)');
+    // Soft warm-umber pixel ground shadow
+    px(x + 2, y + h - 1, w - 2, 3, 'rgba(32, 20, 16, 0.36)');
 
     if (b.kind === 'park') {
-      px(x + 1, y + 1, w - 2, h - 2, '#d8e8f8');
-      px(x + 1, y + 1, w - 2, 2, '#6b4528'); px(x + 1, y + h - 3, w - 2, 2, '#6b4528');
-      px(x + 1, y + 1, 2, h - 2, '#6b4528'); px(x + w - 3, y + 1, 2, h - 2, '#6b4528');
-      // Snow bench
-      px(x + w*0.5 - 5, y + h - 8, 10, 3, '#8c5a32'); px(x + w*0.5 - 5, y + h - 9, 10, 1, '#fff');
-      // 3 crisp tiered pixel snowy pines!
+      // Stardew winter pine grove with split-rail wooden fence & snowy bench
+      px(x + 1, y + 1, w - 2, h - 2, '#e2eef8');
+      px(x + 3, y + 3, w - 6, h - 6, '#edf5fc');
+      // Split-rail oak fence around perimeter
+      px(x + 1, y + 1, w - 2, 2, '#6d4124'); px(x + 1, y + h - 3, w - 2, 2, '#6d4124');
+      px(x + 1, y + 1, 2, h - 2, '#6d4124'); px(x + w - 3, y + 1, 2, h - 2, '#6d4124');
+      for (let fx = x + 3; fx < x + w - 4; fx += 9) {
+        px(fx, y, 2, 4, '#4a2914'); px(fx, y + h - 4, 2, 4, '#4a2914');
+      }
+      // Cozy timber park bench with snow cap
+      px(x + w*0.5 - 6, y + h - 8, 12, 3, '#8f552d');
+      px(x + w*0.5 - 6, y + h - 9, 12, 1, '#fffef8');
+      // 3 lush Stardew-style layered winter pines!
       [[0.28, 0.56], [0.72, 0.46], [0.52, 0.72]].forEach(([fx, fy]) => {
-        const tx = x + w * fx, ty = y + h * fy;
-        px(tx - 1, ty + 2, 3, 4, '#5c3a21');
-        px(tx - 6, ty - 1, 13, 4, '#1b4f3d');
-        px(tx - 5, ty - 4, 11, 4, '#246950');
-        px(tx - 3, ty - 7, 7, 4, '#2f8263');
-        px(tx - 2, ty - 9, 5, 3, '#f0f7ff'); // snow tip
-        px(tx - 4, ty - 4, 3, 1, '#e6f2ff'); px(tx + 2, ty - 1, 3, 1, '#e6f2ff');
+        const tx = Math.round(x + w * fx), ty = Math.round(y + h * fy);
+        px(tx - 1, ty + 2, 3, 4, '#4f2c17');
+        px(tx - 7, ty - 1, 15, 4, '#1b4732');
+        px(tx - 6, ty - 2, 13, 3, '#256143');
+        px(tx - 5, ty - 5, 11, 4, '#2f7a53');
+        px(tx - 3, ty - 8, 7, 4, '#3a9162');
+        px(tx - 2, ty - 10, 5, 3, '#f6faff');
+        px(tx - 5, ty - 4, 3, 1, '#dceaf8'); px(tx + 2, ty - 1, 4, 1, '#dceaf8');
       });
-      if (lit) px(x + 4, y + 4, 3, 3, '#fde047');
+      if (lit) { px(x + 3, y + 3, 4, 4, '#fde047'); px(x + 4, y + 4, 2, 2, '#fffef0'); }
       return;
     }
 
     if (b.kind === 'fountain') {
-      px(x + 1, y + 1, w - 2, h - 2, '#aebbd0');
-      px(x + 2, y + 2, w - 4, h - 4, '#dce6f2');
-      // Octagonal stone basin
-      px(x + 5, y + 4, w - 10, h - 8, '#5b6c82');
-      px(x + 4, y + 6, w - 8, h - 12, '#5b6c82');
-      px(x + 7, y + 6, w - 14, h - 12, lit ? '#7dd3fc' : '#38bdf8');
-      px(x + 6, y + 8, w - 12, h - 16, lit ? '#bae6fd' : '#60ccf8');
-      // Animated water ripple pixel
+      // Stardew town square stone fountain with stepped coping & sparkling water
+      px(x + 1, y + 1, w - 2, h - 2, '#9e978e');
+      px(x + 2, y + 2, w - 4, h - 4, '#c7bfb5');
+      // Corner cobblestones
+      px(x + 3, y + 3, 4, 4, '#d9d2c7'); px(x + w - 7, y + 3, 4, 4, '#d9d2c7');
+      px(x + 3, y + h - 7, 4, 4, '#d9d2c7'); px(x + w - 7, y + h - 7, 4, 4, '#d9d2c7');
+      // Octagonal carved stone basin
+      px(x + 5, y + 4, w - 10, h - 8, '#59524c');
+      px(x + 4, y + 6, w - 8, h - 12, '#59524c');
+      px(x + 6, y + 5, w - 12, h - 10, '#857d75');
+      px(x + 7, y + 6, w - 14, h - 12, lit ? '#6bd4f5' : '#3d99c7');
+      px(x + 6, y + 8, w - 12, h - 16, lit ? '#a8e8fc' : '#5cb8e3');
       const rip = Math.floor(animTime * 4) % 2;
-      px(x + w/2 - 3, y + h/2 - 4, 6, 7, '#e2e8f0');
-      px(x + w/2 - 1, y + h/2 - 7 - rip, 2, 4, '#fff');
-      px(x + w/2 - 5 - rip, y + h/2 - 1, 2, 1, '#fff');
-      px(x + w/2 + 4 + rip, y + h/2 - 1, 2, 1, '#fff');
+      px(x + w/2 - 3, y + h/2 - 4, 6, 7, '#d8d2c7');
+      px(x + w/2 - 1, y + h/2 - 7 - rip, 2, 4, '#fffef9');
+      px(x + w/2 - 5 - rip, y + h/2 - 1, 2, 1, '#fffef9');
+      px(x + w/2 + 4 + rip, y + h/2 - 1, 2, 1, '#fffef9');
       return;
     }
 
     if (b.kind === 'shrine') {
-      px(x + 1, y + 1, w - 2, h - 2, '#dceaf8');
-      // Tiny stone steps
-      px(x + w/2 - 5, y + h - 5, 10, 4, '#94a3b8');
-      // Snowy evergreen behind shrine
-      px(x + 4, y + 4, 8, 8, '#1f5e47'); px(x + 5, y + 3, 6, 3, '#f4f9ff');
-      px(x + w - 12, y + 4, 8, 8, '#1f5e47'); px(x + w - 11, y + 3, 6, 3, '#f4f9ff');
-      // Crisp Japanese Red Torii Gate
-      px(x + 4, y + 7, w - 8, 3, '#dc2626');
-      px(x + 3, y + 6, w - 6, 2, '#f8fbff'); // snow on kasagi beam
-      px(x + 6, y + 12, w - 12, 2, '#b91c1c');
-      px(x + 8, y + 10, 3, h - 14, '#dc2626');
-      px(x + w - 11, y + 10, 3, h - 14, '#dc2626');
+      px(x + 1, y + 1, w - 2, h - 2, '#dfebf7');
+      px(x + w/2 - 6, y + h - 5, 12, 4, '#8d857d');
+      px(x + w/2 - 5, y + h - 5, 10, 1, '#c9c1b7');
+      px(x + 4, y + 4, 8, 8, '#1f593d'); px(x + 5, y + 3, 6, 3, '#f6faff');
+      px(x + w - 12, y + 4, 8, 8, '#1f593d'); px(x + w - 11, y + 3, 6, 3, '#f6faff');
+      // Torii Gate with warm vermilion shading
+      px(x + 4, y + 7, w - 8, 3, '#cc332b');
+      px(x + 3, y + 6, w - 6, 2, '#f8fbff');
+      px(x + 6, y + 12, w - 12, 2, '#9c221b');
+      px(x + 8, y + 10, 3, h - 14, '#cc332b');
+      px(x + w - 11, y + 10, 3, h - 14, '#cc332b');
       px(x + 3, y + h - 8, 4, 5, '#78716c'); px(x + 4, y + h - 7, 2, 2, lit ? '#fde047' : '#334155');
       px(x + w - 7, y + h - 8, 4, 5, '#78716c'); px(x + w - 6, y + h - 7, 2, 2, lit ? '#fde047' : '#334155');
       return;
     }
 
     if (b.kind === 'station') {
-      // Railway tracks along top
-      px(x, y + 1, w, 5, '#334155');
-      for (let tx = x + 2; tx < x + w - 2; tx += 5) px(tx, y + 1, 2, 5, '#94a3b8');
+      // Railway tracks + Stardew-style timber-and-stone countryside depot
+      px(x, y + 1, w, 5, '#423833');
+      for (let tx = x + 2; tx < x + w - 2; tx += 5) px(tx, y + 1, 2, 5, '#8c694a');
       px(x, y + 2, w, 1, '#cbd5e1'); px(x, y + 4, w, 1, '#cbd5e1');
-      // Station building + sloped snowy platform roof
-      px(x + 2, y + 7, w - 4, h - 8, '#241712');
-      px(x + 3, y + 8, w - 6, h - 10, '#e8dcc4');
-      px(x + 1, y + 7, w - 2, Math.floor(h * 0.38), '#3b5b7c');
-      px(x + 2, y + 7, w - 4, 4, '#f4f8ff');
+      px(x + 2, y + 7, w - 4, h - 8, INK);
+      px(x + 3, y + 8, w - 6, h - 10, '#ebd8b7');
+      px(x + 3, y + h - 5, w - 6, 3, '#8a7e72'); // stone base
+      px(x + 1, y + 7, w - 2, Math.floor(h * 0.38), '#3b5775');
+      px(x + 2, y + 7, w - 4, 4, '#f6f9ff');
+      // Roof shingle ticks
+      for (let sx = x + 5; sx < x + w - 5; sx += 6) px(sx, y + Math.floor(h * 0.38) + 2, 2, 3, '#293e54');
       for (let wx = x + 7; wx < x + w - 10; wx += 13) {
-        px(wx, y + h - 12, 8, 7, '#241712');
-        px(wx + 1, y + h - 11, 6, 5, winCol);
-        px(wx + 1, y + h - 11, 2, 2, winHi);
+        px(wx, y + h - 13, 8, 8, INK);
+        px(wx + 1, y + h - 12, 6, 6, winCol);
+        px(wx + 1, y + h - 12, 2, 2, winHi);
+        px(wx + 3, y + h - 12, 1, 6, '#6e4226'); // window mullion
       }
       return;
     }
 
     const styles = {
-      ramen:  { roof: '#425166', roofHi: '#5b6f8a', wall: '#8f5d3c', trim: '#b91c1c', gable: false },
-      bakery: { roof: '#c25438', roofHi: '#de6f50', wall: '#f5dfc0', trim: '#dc2626', gable: true },
-      clock:  { roof: '#3b5a82', roofHi: '#567cad', wall: '#a8553a', trim: '#fde68a', gable: false },
-      cafe:   { roof: '#3f7356', roofHi: '#599674', wall: '#efe2c8', trim: '#2e6f4f', gable: true },
-      post:   { roof: '#7c2d3b', roofHi: '#9e3e4f', wall: '#b85342', trim: '#e2e8f0', gable: true },
-      bath:   { roof: '#346496', roofHi: '#4e84bd', wall: '#8f6647', trim: '#d97706', gable: true },
-      mart:   { roof: '#cbd5e1', roofHi: '#f8fafc', wall: '#f8fafc', trim: '#16a34a', gable: false },
+      ramen:  { roof: '#4e596e', roofHi: '#687691', wall: '#a86b43', wallLo: '#8c5330', trim: '#b92b27', gable: false },
+      bakery: { roof: '#bf4c34', roofHi: '#de674b', wall: '#f5dfc0', wallLo: '#dec19b', trim: '#c9342b', gable: true },
+      clock:  { roof: '#3d5a7d', roofHi: '#5a7da8', wall: '#a8533a', wallLo: '#873d28', trim: '#fde68a', gable: false },
+      cafe:   { roof: '#3a6e4c', roofHi: '#549168', wall: '#f0e2c8', wallLo: '#d6c3a3', trim: '#2c6b47', gable: true },
+      post:   { roof: '#782e3b', roofHi: '#9c4050', wall: '#b55140', wallLo: '#913c2e', trim: '#e2e8f0', gable: true },
+      bath:   { roof: '#35618c', roofHi: '#4e81b3', wall: '#916543', wallLo: '#734d30', trim: '#d97706', gable: true },
+      mart:   { roof: '#cbd5e1', roofHi: '#f8fafc', wall: '#f7f3e8', wallLo: '#ded7c8', trim: '#1f8a4c', gable: false },
     };
     const st = styles[b.kind] || styles.bakery;
 
-    // Wall base with dark pixel outline & vertical timber posts
+    // Wall base with warm umber outline, stone foundation & horizontal timber plank grain!
     const roofH = Math.round(h * 0.48);
-    px(x + 2, y + roofH - 2, w - 4, h - roofH + 1, '#241712');
+    px(x + 2, y + roofH - 2, w - 4, h - roofH + 1, INK);
     px(x + 3, y + roofH - 1, w - 6, h - roofH - 1, st.wall);
-    // Warm timber side pillars
-    px(x + 3, y + roofH, 2, h - roofH - 2, 'rgba(56, 30, 14, 0.35)');
-    px(x + w - 5, y + roofH, 2, h - roofH - 2, 'rgba(56, 30, 14, 0.35)');
+    // Horizontal plank/brick texture lines
+    for (let py = y + roofH + 3; py < y + h - 4; py += 4) {
+      px(x + 3, py, w - 6, 1, st.wallLo);
+    }
+    // Stone masonry foundation course at bottom of building
+    px(x + 3, y + h - 4, w - 6, 3, '#7e756d');
+    for (let sx = x + 4; sx < x + w - 5; sx += 5) px(sx, y + h - 4, 3, 2, '#9e948a');
+    // Warm timber corner beams
+    px(x + 3, y + roofH, 2, h - roofH - 2, '#5c3318');
+    px(x + w - 5, y + roofH, 2, h - roofH - 2, '#5c3318');
 
-    // Stepped gabled pixel roof vs tiled eave roof!
+    // Stepped shingled pixel roof with snow cap!
     if (st.gable) {
       for (let step = 0; step < 4; step++) {
         const inset = (3 - step) * 3;
         const ry = y - 2 + step * Math.ceil(roofH / 4);
         const rw = Math.max(8, w - inset * 2);
-        px(x + inset, ry, rw, Math.ceil(roofH / 4) + 1, '#241712');
+        px(x + inset, ry, rw, Math.ceil(roofH / 4) + 1, INK);
         px(x + inset + 1, ry + 1, rw - 2, Math.ceil(roofH / 4), step < 2 ? '#f4f8ff' : st.roof);
+        if (step >= 2) {
+          for (let sx = x + inset + 3; sx < x + inset + rw - 4; sx += 4) {
+            px(sx, ry + 2, 2, 2, st.roofHi);
+          }
+        }
       }
-      // Scalloped snow eaves overhang
       px(x + 1, y + roofH - 3, w - 2, 3, st.roofHi);
-      px(x + 2, y + roofH - 4, w - 4, 2, '#f8fbff');
+      px(x + 2, y + roofH - 4, w - 4, 2, '#fffef9');
+      px(x + 3, y + roofH - 2, w - 6, 1, '#bdd1e8'); // snow shadow rim
     } else {
-      px(x + 1, y + 1, w - 2, roofH, '#241712');
+      px(x + 1, y + 1, w - 2, roofH, INK);
       px(x + 2, y + 2, w - 4, roofH - 2, st.roof);
-      px(x + 3, y + 2, w - 6, Math.max(4, Math.floor(roofH * 0.45)), '#f4f8ff');
-      // Pixel tile ridges
-      for (let rx = x + 5; rx < x + w - 4; rx += 5) px(rx, y + roofH - 5, 1, 4, 'rgba(0,0,0,0.22)');
+      px(x + 3, y + 2, w - 6, Math.max(4, Math.floor(roofH * 0.45)), '#f6f9ff');
+      px(x + 3, y + Math.max(4, Math.floor(roofH * 0.45)) + 1, w - 6, 1, '#bdd1e8');
+      for (let rx = x + 4; rx < x + w - 4; rx += 5) {
+        px(rx, y + roofH - 5, 2, 4, 'rgba(30, 18, 12, 0.25)');
+        px(rx + 2, y + roofH - 4, 2, 2, st.roofHi);
+      }
     }
+
+    // Helper: Stardew cross-mullion wooden window + flower/snow sill
+    const drawWin = (wx, wy, ww, wh) => {
+      px(wx, wy, ww, wh, INK);
+      px(wx + 1, wy + 1, ww - 2, wh - 2, winCol);
+      px(wx + 1, wy + 1, Math.max(1, Math.floor((ww - 2) / 2)), 2, winHi);
+      if (ww >= 7) px(wx + Math.floor(ww / 2), wy + 1, 1, wh - 2, '#5c3318');
+      if (wh >= 7) px(wx + 1, wy + Math.floor(wh / 2), ww - 2, 1, '#5c3318');
+      px(wx - 1, wy + wh, ww + 2, 1, '#6d4124'); // wooden sill
+    };
 
     // Distinct architectural signature details
     if (b.kind === 'clock') {
       const tw = Math.round(w * 0.46), tx = Math.round(x + (w - tw) / 2);
-      px(tx, y - 9, tw, h + 7, '#241712');
+      px(tx, y - 9, tw, h + 7, INK);
       px(tx + 1, y - 8, tw - 2, h + 5, st.wall);
-      // Pointed snowy spire
+      for (let py = y + 2; py < y + h - 4; py += 4) px(tx + 1, py, tw - 2, 1, st.wallLo);
       px(tx - 1, y - 10, tw + 2, 4, st.roof);
       px(tx + 2, y - 13, tw - 4, 4, '#f8fbff');
       px(x + w/2 - 1, y - 16, 2, 4, '#fde047');
-      // Glowing clock dial
-      px(x + w/2 - 5, y - 3, 10, 10, '#241712');
+      px(x + w/2 - 5, y - 3, 10, 10, INK);
       px(x + w/2 - 4, y - 2, 8, 8, lit ? '#fef08a' : '#dce6f2');
-      px(x + w/2 - 1, y, 1, 3, '#1e293b'); px(x + w/2, y + 2, 3, 1, '#1e293b');
-      // Arched wooden door
-      px(x + w/2 - 4, y + h - 10, 8, 8, '#3b2012');
-      px(x + w/2 - 3, y + h - 9, 6, 5, winCol);
+      px(x + w/2 - 1, y, 1, 3, '#2d1a12'); px(x + w/2, y + 2, 3, 1, '#2d1a12');
+      px(x + w/2 - 4, y + h - 11, 8, 9, '#4a2614');
+      px(x + w/2 - 3, y + h - 10, 6, 5, winCol);
     } else if (b.kind === 'ramen') {
-      // Glowing shoji window + red noren curtains + warm hanging paper lantern
-      px(x + 6, y + h - 13, w - 12, 10, '#241712');
+      px(x + 6, y + h - 13, w - 12, 10, INK);
       px(x + 7, y + h - 12, w - 14, 8, winCol);
-      for (let k = 0; k < 3; k++) px(x + 8 + k * Math.floor((w - 14) / 3), y + h - 13, Math.floor((w - 18) / 3), 5, '#b91c1c');
+      for (let k = 0; k < 3; k++) px(x + 8 + k * Math.floor((w - 14) / 3), y + h - 13, Math.floor((w - 18) / 3), 5, '#b9261d');
       px(x + w - 7, y + h - 14, 4, 6, lit ? '#ff9f1c' : '#64748b');
       if (lit) px(x + w - 6, y + h - 13, 2, 4, '#fef08a');
     } else if (b.kind === 'bakery' || b.kind === 'cafe') {
       for (let ax = x + 3; ax < x + w - 4; ax += 4) {
         px(ax, y + roofH, 2, 4, st.trim); px(ax + 2, y + roofH, 2, 4, '#fff7ed');
       }
-      const ww = Math.max(6, Math.floor(w * 0.28));
-      px(x + 5, y + h - 10, ww, 7, '#241712'); px(x + 6, y + h - 9, ww - 2, 5, winCol);
-      px(x + w - 5 - ww, y + h - 10, ww, 7, '#241712'); px(x + w - 4 - ww, y + h - 9, ww - 2, 5, winCol);
-      px(x + w/2 - 3, y + h - 9, 6, 7, '#5c331a'); // wooden door
+      const ww = Math.max(7, Math.floor(w * 0.28));
+      drawWin(x + 5, y + h - 11, ww, 7);
+      drawWin(x + w - 5 - ww, y + h - 11, ww, 7);
+      px(x + w/2 - 3, y + h - 10, 6, 8, '#5c3318');
+      px(x + w/2 - 2, y + h - 9, 4, 3, winCol);
     } else if (b.kind === 'bath') {
-      // Tall brick sento chimney!
-      px(x + w - 9, y - 8, 6, 14, '#241712');
+      // Tall brick sento chimney + gentle pixel steam puffs!
+      px(x + w - 9, y - 8, 6, 14, INK);
       px(x + w - 8, y - 7, 4, 12, '#a84a36');
       px(x + w - 9, y - 8, 6, 2, '#f8fbff');
-      px(x + 6, y + h - 10, w - 12, 7, '#241712');
-      px(x + 7, y + h - 9, w - 14, 5, winCol);
+      const puff = Math.floor(animTime * 2.5) % 3;
+      px(x + w - 8 + puff, y - 12 - puff, 3, 2, 'rgba(255,255,255,0.75)');
+      px(x + w - 6 - puff, y - 15 - puff, 2, 2, 'rgba(255,255,255,0.5)');
+      drawWin(x + 6, y + h - 11, w - 12, 7);
     } else if (b.kind === 'mart') {
       px(x + 2, y + roofH - 1, w - 4, 2, '#f97316');
       px(x + 2, y + roofH + 1, w - 4, 2, '#16a34a');
       px(x + 2, y + roofH + 3, w - 4, 2, '#dc2626');
-      px(x + 5, y + h - 10, w - 10, 8, '#241712');
+      px(x + 5, y + h - 10, w - 10, 8, INK);
       px(x + 6, y + h - 9, w - 12, 6, lit ? '#fef9c3' : '#94a3b8');
     } else {
-      // Red brick post office with cozy windows & red postbox
-      px(x + 5, y + h - 10, 7, 7, '#241712'); px(x + 6, y + h - 9, 5, 5, winCol);
-      px(x + w - 12, y + h - 10, 7, 7, '#241712'); px(x + w - 11, y + h - 9, 5, 5, winCol);
-      px(x + w - 5, y + h - 8, 4, 6, '#dc2626');
+      drawWin(x + 5, y + h - 11, 7, 7);
+      drawWin(x + w - 12, y + h - 11, 7, 7);
+      px(x + w - 5, y + h - 8, 4, 6, '#c92e2e');
     }
   }
 
@@ -2383,7 +2422,7 @@
       for (let c = 0; c < cols; c++)
         if (st.grid[r][c].lamp && st.grid[r][c].lampLit) litLamps.push([r, c]);
 
-    // 1. Handcrafted micro-pixel cobblestone street paving (strictly inside [ox, ox + gw])
+    // 1. Stardew-style handcrafted rounded cobblestone street paving (strictly inside [ox, ox + gw])
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const x = ox + c * ts, y = oy + r * ts;
@@ -2396,19 +2435,26 @@
         ctx.fillStyle = ((r + c) % 2 === 0) ? th.roadBase : th.roadAlt;
         ctx.fillRect(x, y, ts, ts);
         if (warm > 0.02) {
-          ctx.fillStyle = `rgba(255, 204, 96, ${warm * 0.30})`;
+          ctx.fillStyle = `rgba(255, 200, 86, ${warm * 0.34})`;
           ctx.fillRect(x, y, ts, ts);
         }
-        // Subtle staggered pixel cobblestone brick joints on cleared street
+        // Rich Stardew-style staggered rounded stone pavers on cleared street
         if (cell.type === 'empty') {
-          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          const v = (r * 13 + c * 7) % 3;
+          ctx.fillStyle = 'rgba(28, 22, 18, 0.14)';
           ctx.fillRect(x, y + Math.floor(ts * 0.5), ts, 1);
-          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.45 : 0.72)), y, 1, Math.floor(ts * 0.5));
-          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.18 : 0.38)), y + Math.floor(ts * 0.5), 1, ts - Math.floor(ts * 0.5));
-          ctx.fillStyle = 'rgba(255,255,255,0.06)';
-          ctx.fillRect(x + 2, y + 2, Math.floor(ts * 0.35), 1);
+          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.48 : 0.72)), y, 1, Math.floor(ts * 0.5));
+          ctx.fillRect(x + Math.floor(ts * ((r % 2 === 0) ? 0.22 : 0.42)), y + Math.floor(ts * 0.5), 1, ts - Math.floor(ts * 0.5));
+          // Top-left stone bevel highlight + warm/cool stone variation
+          ctx.fillStyle = 'rgba(255, 248, 232, 0.11)';
+          ctx.fillRect(x + 2, y + 2, Math.floor(ts * 0.32), 2);
+          ctx.fillRect(x + Math.floor(ts * 0.52), y + Math.floor(ts * 0.5) + 2, Math.floor(ts * 0.3), 2);
+          if (v === 0) {
+            ctx.fillStyle = 'rgba(240, 246, 255, 0.14)';
+            ctx.fillRect(x + ts - 4, y + ts - 3, 2, 2); // tiny winter frost speck
+          }
           if (cell.revealPop > 0) {
-            ctx.fillStyle = `rgba(255, 245, 175, ${cell.revealPop * 0.55})`;
+            ctx.fillStyle = `rgba(255, 242, 168, ${cell.revealPop * 0.58})`;
             ctx.fillRect(x + 1, y + 1, ts - 2, ts - 2);
           }
         }
