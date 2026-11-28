@@ -207,4 +207,19 @@ export class WebPreviewAdapter {
   reportEvent(_eventId, _data) {
     // no-op in preview
   }
+
+  /** @param {{ key: string; value: string }[]} _kvList */
+  submitLeaderboardScore(_kvList) {
+    // no-op in browser preview (local/benchmark leaderboard reads SaveManager live)
+  }
+
+  /** @returns {CanvasLike | null} */
+  getOpenDataCanvas() {
+    return null;
+  }
+
+  /** @param {Record<string, unknown>} _msg */
+  postOpenDataMessage(_msg) {
+    // no-op in browser preview
+  }
 }

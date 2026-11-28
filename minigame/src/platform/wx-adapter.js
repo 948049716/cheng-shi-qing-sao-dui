@@ -207,4 +207,38 @@ export class WxMiniGameAdapter {
       }
     }
   }
+
+  /**
+   * Upload player progress/chain metrics to WeChat cloud storage for friend leaderboards.
+   * @param {{ key: string; value: string }[]} kvList
+   */
+  submitLeaderboardScore(kvList) {
+    if (wx.setUserCloudStorage) {
+      try {
+        wx.setUserCloudStorage({ KVDataList: kvList });
+      } catch {
+        // ignore cloud storage failures
+      }
+    }
+  }
+
+  /** @returns {CanvasLike | null} */
+  getOpenDataCanvas() {
+    if (!wx.getOpenDataContext) return null;
+    try {
+      return wx.getOpenDataContext().canvas || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** @param {Record<string, unknown>} msg */
+  postOpenDataMessage(msg) {
+    if (!wx.getOpenDataContext) return;
+    try {
+      wx.getOpenDataContext().postMessage(msg);
+    } catch {
+      // ignore sandbox message errors
+    }
+  }
 }

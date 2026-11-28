@@ -14,6 +14,7 @@ import {
   SKINS,
   getSkinById
 } from '../core/constants.js';
+import { buildLeaderboard } from '../core/leaderboard.js';
 import { DominoCache, roundRectPath } from './domino-cache.js';
 import { ParticlePool } from './particle-pool.js';
 
@@ -21,6 +22,7 @@ import { ParticlePool } from './particle-pool.js';
 /** @typedef {import('../../../types/domain.d.ts').CompiledLevel} CompiledLevel */
 /** @typedef {import('../../../types/domain.d.ts').EngineSnapshot} EngineSnapshot */
 /** @typedef {import('../../../types/domain.d.ts').SkinDef} SkinDef */
+/** @typedef {import('../../../types/domain.d.ts').LeaderboardTab} LeaderboardTab */
 /** @typedef {import('../../../types/platform.d.ts').IPlatformAdapter} IPlatformAdapter */
 /** @typedef {import('../../../types/platform.d.ts').ViewportMetrics} ViewportMetrics */
 /** @typedef {import('../../../types/platform.d.ts').CanvasLike} CanvasLike */
@@ -107,15 +109,69 @@ export class CanvasRenderer {
     /** @type {{ cellIndex: number; dir: Dir | null } | null} */
     this.dragVisual = null;
 
-    // Modal overlays: 'none' | 'gallery' | 'skins' | 'collage' | 'info'
-    /** @type {'none' | 'gallery' | 'skins' | 'collage' | 'info'} */
+    // Top-level screen: default to level-select screen upon game load
+    /** @type {'select' | 'play'} */
+    this.screen = 'select';
+
+    // Modal overlays: 'none' | 'leaderboard' | 'skins' | 'collage' | 'info'
+    /** @type {'none' | 'leaderboard' | 'skins' | 'collage' | 'info'} */
     this.overlay = 'none';
+
+    // Leaderboard state
+    /** @type {LeaderboardTab} */
+    this.rankTab = 'progress';
+    this.rankScrollY = 0;
+    this.rankMaxScrollY = 0;
+    this.rankListRect = { x: 26, y: 174, w: 308, h: 240 };
 
     /** @type {HitBox[]} */
     this.hitBoxes = [];
 
     this.resize(this.vp);
     this.syncLevelVisuals();
+  }
+
+  /**
+   * Whether WeChat openDataContext friend leaderboard canvas is available.
+   * @returns {boolean}
+   */
+  hasWeChatFriendsRank() {
+    return Boolean(this.platform.getOpenDataCanvas && this.platform.getOpenDataCanvas());
+  }
+
+  /**
+   * Open leaderboard overlay on the chosen tab and notify openDataContext when needed.
+   * @param {LeaderboardTab} [tab]
+   */
+  openLeaderboard(tab) {
+    if (tab) this.rankTab = tab;
+    if (this.rankTab === 'friends' && !this.hasWeChatFriendsRank()) {
+      this.rankTab = 'progress';
+    }
+    this.rankScrollY = 0;
+    this.overlay = 'leaderboard';
+    if (this.rankTab === 'friends' && this.platform.postOpenDataMessage) {
+      this.platform.postOpenDataMessage({
+        type: 'SHOW_RANK',
+        tab: 'progress',
+        width: this.rankListRect.w,
+        height: this.rankListRect.h,
+        dpr: this.vp.dpr * this.scale
+      });
+    }
+  }
+
+  /**
+   * Scroll active leaderboard list by vertical delta in logical pixels.
+   * @param {number} deltaY
+   */
+  scrollLeaderboard(deltaY) {
+    if (this.overlay !== 'leaderboard') return;
+    if (this.rankTab === 'friends' && this.platform.postOpenDataMessage) {
+      this.platform.postOpenDataMessage({ type: 'SCROLL', deltaY });
+      return;
+    }
+    this.rankScrollY = Math.max(0, Math.min(this.rankMaxScrollY, this.rankScrollY + deltaY));
   }
 
   /**
@@ -534,77 +590,85 @@ export class CanvasRenderer {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, this.logicalW, this.logicalH);
 
-    // Pre-bake standing dominoes & table caches
-    this.dominoCache.ensure(this.board.cellSize, dpr * this.scale, skin);
-    this.ensureTableCache(skin);
-
-    // Shake transform for big chains
-    let shakeX = 0;
-    let shakeY = 0;
-    if (nowMs < this.shakeEndMs) {
-      const p = (this.shakeEndMs - nowMs) / 220;
-      shakeX = Math.sin(nowMs * 0.08) * 3 * p;
-      shakeY = Math.cos(nowMs * 0.11) * 2 * p;
-    }
-
-    // ===== LAYER 0: STATIC WOOD & FELT TABLE =====
-    ctx.save();
-    ctx.translate(shakeX, shakeY);
-    if (this.tableCache) {
-      ctx.drawImage(
-        /** @type {CanvasImageSource} */ (/** @type {unknown} */ (this.tableCache)),
-        this.board.frameX,
-        this.board.frameY,
-        this.board.frameW,
-        this.board.frameH + 8
-      );
-    }
-
-    // ===== LAYER 1: SETTLED PIXEL-ART TILES =====
-    if (this.winWaveStartMs > 0 && nowMs >= this.winWaveStartMs) {
-      this.drawWinRippleTiles(ctx, snap, nowMs);
-    } else if (this.settledCache) {
-      const { W, H } = snap.level;
-      const { gridX, gridY, cellSize, gap } = this.board;
-      ctx.drawImage(
-        /** @type {CanvasImageSource} */ (/** @type {unknown} */ (this.settledCache)),
-        gridX,
-        gridY,
-        W * cellSize + (W - 1) * gap,
-        H * cellSize + (H - 1) * gap
-      );
-    }
-
-    // ===== LAYER 2: STANDING PRE-BAKED DOMINOES =====
-    this.drawStandingDominoes(ctx, snap, nowMs);
-
-    // ===== LAYER 3: ACTIVE FALLING ANIMS + SWIPE PREVIEW + PARTICLES =====
-    this.drawFallingAnims(ctx, nowMs);
-    this.drawSwipePreview(ctx, snap);
-    this.drawGuideHand(ctx, snap, nowMs);
-    this.particles.draw(ctx);
-
-    ctx.restore(); // end board shake
-
-    // ===== LAYER 4: HUD, INLINE PANELS, COMBO & OVERLAYS =====
-    this.drawTopHud(ctx, snap, skin);
-    this.drawComboAndToast(ctx, nowMs);
-
-    if (snap.ended === 'playing') {
-      this.drawBottomToolbar(ctx, snap, skin);
-    } else if (snap.ended === 'won') {
-      this.drawWinPanel(ctx, snap, skin);
+    if (this.screen === 'select') {
+      this.drawLevelSelectScreen(ctx, skin);
+      this.drawComplianceFooter(ctx);
     } else {
-      this.drawFailPanel(ctx, snap, skin);
-    }
+      // Pre-bake standing dominoes & table caches
+      this.dominoCache.ensure(this.board.cellSize, dpr * this.scale, skin);
+      this.ensureTableCache(skin);
 
-    this.drawComplianceFooter(ctx);
+      // Shake transform for big chains
+      let shakeX = 0;
+      let shakeY = 0;
+      if (nowMs < this.shakeEndMs) {
+        const p = (this.shakeEndMs - nowMs) / 220;
+        shakeX = Math.sin(nowMs * 0.08) * 3 * p;
+        shakeY = Math.cos(nowMs * 0.11) * 2 * p;
+      }
+
+      // ===== LAYER 0: STATIC WOOD & FELT TABLE =====
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+      if (this.tableCache) {
+        ctx.drawImage(
+          /** @type {CanvasImageSource} */ (/** @type {unknown} */ (this.tableCache)),
+          this.board.frameX,
+          this.board.frameY,
+          this.board.frameW,
+          this.board.frameH + 8
+        );
+      }
+
+      // ===== LAYER 1: SETTLED PIXEL-ART TILES =====
+      if (this.winWaveStartMs > 0 && nowMs >= this.winWaveStartMs) {
+        this.drawWinRippleTiles(ctx, snap, nowMs);
+      } else if (this.settledCache) {
+        const { W, H } = snap.level;
+        const { gridX, gridY, cellSize, gap } = this.board;
+        ctx.drawImage(
+          /** @type {CanvasImageSource} */ (/** @type {unknown} */ (this.settledCache)),
+          gridX,
+          gridY,
+          W * cellSize + (W - 1) * gap,
+          H * cellSize + (H - 1) * gap
+        );
+      }
+
+      // ===== LAYER 2: STANDING PRE-BAKED DOMINOES =====
+      this.drawStandingDominoes(ctx, snap, nowMs);
+
+      // ===== LAYER 3: ACTIVE FALLING ANIMS + SWIPE PREVIEW + PARTICLES =====
+      this.drawFallingAnims(ctx, nowMs);
+      this.drawSwipePreview(ctx, snap);
+      this.drawGuideHand(ctx, snap, nowMs);
+      this.particles.draw(ctx);
+
+      ctx.restore(); // end board shake
+
+      // ===== LAYER 4: HUD, INLINE PANELS & COMBO =====
+      this.drawTopHud(ctx, snap, skin);
+      this.drawComboBanner(ctx, nowMs);
+
+      if (snap.ended === 'playing') {
+        this.drawBottomToolbar(ctx, snap, skin);
+      } else if (snap.ended === 'won') {
+        this.drawWinPanel(ctx, snap, skin);
+      } else {
+        this.drawFailPanel(ctx, snap, skin);
+      }
+
+      this.drawComplianceFooter(ctx);
+    }
 
     // Active full-canvas overlay modals
-    if (this.overlay === 'gallery') this.drawGalleryOverlay(ctx, skin);
+    if (this.overlay === 'leaderboard') this.drawLeaderboardOverlay(ctx, skin);
     else if (this.overlay === 'skins') this.drawSkinsOverlay(ctx, skin);
     else if (this.overlay === 'collage') this.drawCollageOverlay(ctx, skin);
     else if (this.overlay === 'info') this.drawInfoOverlay(ctx, skin);
+
+    // Toast always renders cleanly above both screens and modals
+    this.drawToast(ctx, nowMs);
 
     ctx.restore();
   }
@@ -884,40 +948,35 @@ export class CanvasRenderer {
       ? Math.min(this.logicalW - 12, Math.floor((this.vp.capsuleRect.left - this.offsetX) / this.scale) - 8)
       : this.logicalW - 12;
 
-    // Mini domino logo + Game Title
-    ctx.save();
-    ctx.fillStyle = skin.normalEdge;
-    roundRectPath(ctx, 12, y0 + 5, 13, 21, 3.5);
-    ctx.fill();
-    ctx.fillStyle = skin.normalTop;
-    roundRectPath(ctx, 12, y0 + 3, 13, 20, 3.5);
-    ctx.fill();
-    ctx.fillStyle = skin.pipColor;
-    ctx.beginPath();
-    ctx.arc(18.5, y0 + 9, 1.8, 0, Math.PI * 2);
-    ctx.arc(18.5, y0 + 16.5, 1.8, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#4a3f35';
-    ctx.font = `900 16px ${FONT_STACK}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(GAME_TITLE, 31, y0 + 14);
-
-    // Compact action pills aligned left of WeChat capsule: [画廊] [皮肤] [🔊]
     const btnH = 28;
-    const muteW = 32;
-    const pillW = 46;
-    const gap = 6;
+    // Left back-to-level-select button
+    this.drawChipBtn(ctx, 12, y0, 62, btnH, '← 选关', 'back_select', false);
+
+    // Compact action pills aligned left of WeChat capsule: [排行] [皮肤] [音]
+    const muteW = 30;
+    const pillW = 44;
+    const gap = 5;
     const muteX = rightBound - muteW;
     const skinX = muteX - gap - pillW;
-    const galX = skinX - gap - pillW;
+    const rankX = skinX - gap - pillW;
 
-    this.drawChipBtn(ctx, galX, y0, pillW, btnH, '画廊', 'open_gallery', false);
+    this.drawChipBtn(ctx, rankX, y0, pillW, btnH, '排行', 'open_leaderboard', false);
     this.drawChipBtn(ctx, skinX, y0, pillW, btnH, '皮肤', 'open_skins', false);
     this.drawChipBtn(ctx, muteX, y0, muteW, btnH, this.engine.save.data.settings.muted ? '静' : '音', 'toggle_mute', false);
 
+    // Subtle centered title when there is enough horizontal clearance
+    if (rankX - 80 > 74) {
+      ctx.save();
+      ctx.fillStyle = '#4a3f35';
+      ctx.font = `900 15px ${FONT_STACK}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(GAME_TITLE, (74 + rankX) / 2, y0 + 14);
+      ctx.restore();
+    }
+
     // Info row: "第 N 关 · ??" (reveals name on win) + Push domino slots
+    ctx.save();
     const infoY = y0 + 42;
     const def = snap.level.def;
     const cleared = Boolean(this.engine.save.data.clearedLevels[def.levelId]);
@@ -989,12 +1048,11 @@ export class CanvasRenderer {
   }
 
   /**
-   * Floating combo counter & toast inside board top/bottom.
+   * Floating combo counter inside top center of board.
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} nowMs
    */
-  drawComboAndToast(ctx, nowMs) {
-    // Combo burst at top center of board
+  drawComboBanner(ctx, nowMs) {
     if (this.comboLabel && nowMs < this.comboHideAtMs) {
       const rem = this.comboHideAtMs - nowMs;
       const alpha = rem < 300 ? rem / 300 : 1;
@@ -1015,24 +1073,33 @@ export class CanvasRenderer {
       ctx.fillText(this.comboLabel, 0, 0);
       ctx.restore();
     }
+  }
 
-    // Toast pill near bottom of board
+  /**
+   * Global toast pill rendered cleanly above all screens and modal overlays.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} nowMs
+   */
+  drawToast(ctx, nowMs) {
     if (this.toastMsg && nowMs < this.toastHideAtMs) {
       const rem = this.toastHideAtMs - nowMs;
       const alpha = rem < 250 ? rem / 250 : 1;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.font = `bold 12px ${FONT_STACK}`;
-      const tw = ctx.measureText(this.toastMsg).width + 26;
+      const tw = Math.min(this.logicalW - 28, ctx.measureText(this.toastMsg).width + 26);
       const tx = (this.logicalW - tw) / 2;
-      const ty = this.board.frameY + this.board.frameH - 36;
-      ctx.fillStyle = 'rgba(74,63,53,0.92)';
-      roundRectPath(ctx, tx, ty, tw, 26, 999);
+      const safeTop = Math.max(8, Math.round(this.vp.safeTop / this.scale));
+      const ty = (this.screen === 'play' && this.overlay === 'none')
+        ? this.board.frameY + this.board.frameH - 36
+        : safeTop + 42;
+      ctx.fillStyle = 'rgba(74,63,53,0.94)';
+      roundRectPath(ctx, tx, ty, tw, 28, 999);
       ctx.fill();
       ctx.fillStyle = '#fff9f0';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(this.toastMsg, this.logicalW / 2, ty + 13.5);
+      ctx.fillText(this.toastMsg, this.logicalW / 2, ty + 14.5);
       ctx.restore();
     }
   }
@@ -1117,12 +1184,27 @@ export class CanvasRenderer {
     const by = y + 74;
     const bh = 36;
     const gap = 8;
-    const bw = (w - 24 - gap) / 2;
-    this.drawActionBtn(ctx, x + 12, by, bw, bh, '再推一次', 'replay', false, false);
+    const innerW = w - 24;
+    const wSelect = 66;
+    const wReplay = 72;
+    const wNext = innerW - wSelect - wReplay - gap * 2;
+
+    this.drawActionBtn(ctx, x + 12, by, wSelect, bh, '选关', 'back_select', false, false);
+    this.drawActionBtn(ctx, x + 12 + wSelect + gap, by, wReplay, bh, '重玩', 'replay', false, false);
     if (isLast) {
-      this.drawActionBtn(ctx, x + 12 + bw + gap, by, bw, bh, allCleared ? '查看20画海报' : '打开画廊', allCleared ? 'open_collage' : 'open_gallery', true, false);
+      this.drawActionBtn(
+        ctx,
+        x + 12 + wSelect + wReplay + gap * 2,
+        by,
+        wNext,
+        bh,
+        allCleared ? '查看20画海报' : '返回选关',
+        allCleared ? 'open_collage' : 'back_select',
+        true,
+        false
+      );
     } else {
-      this.drawActionBtn(ctx, x + 12 + bw + gap, by, bw, bh, '下一关 →', 'next_level', true, false);
+      this.drawActionBtn(ctx, x + 12 + wSelect + wReplay + gap * 2, by, wNext, bh, '下一关 →', 'next_level', true, false);
     }
   }
 
@@ -1227,91 +1309,504 @@ export class CanvasRenderer {
   }
 
   /**
-   * Full in-canvas 20-Level Gallery Overlay (live mini pixel-art cards + perfect gold frames).
+   * Primary Home Level-Select Screen (entered immediately on load):
+   * - Cleared levels display their completed pixel-art painting (+ gold frame if perfect)
+   * - Uncleared levels clearly display "待完成" (with playable highlight on unlocked next level)
    * @param {CanvasRenderingContext2D} ctx
    * @param {SkinDef} skin
    */
-  drawGalleryOverlay(ctx, skin) {
-    this.hitBoxes = []; // modal blocks underlying board hits
-    this.drawModalBackdrop(ctx, '画廊图鉴', `${this.engine.save.countCleared()}/20 幅已点亮 · ★ ${this.engine.save.countGoldFrames()} 金框`, skin);
+  drawLevelSelectScreen(ctx, skin) {
+    const safeTop = Math.max(8, Math.round(this.vp.safeTop / this.scale));
+    const safeBot = Math.max(6, Math.round(this.vp.safeBottom / this.scale));
+    const y0 = safeTop + 4;
 
-    const mx = 14;
-    const my = 76;
-    const mw = this.logicalW - 28;
+    const rightBound = this.vp.capsuleRect
+      ? Math.min(this.logicalW - 12, Math.floor((this.vp.capsuleRect.left - this.offsetX) / this.scale) - 8)
+      : this.logicalW - 12;
+
+    // 1) Top header: mini domino logo + title + [排行] [皮肤] [音]
+    ctx.save();
+    ctx.fillStyle = skin.normalEdge;
+    roundRectPath(ctx, 12, y0 + 5, 13, 21, 3.5);
+    ctx.fill();
+    ctx.fillStyle = skin.normalTop;
+    roundRectPath(ctx, 12, y0 + 3, 13, 20, 3.5);
+    ctx.fill();
+    ctx.fillStyle = skin.pipColor;
+    ctx.beginPath();
+    ctx.arc(18.5, y0 + 9, 1.8, 0, Math.PI * 2);
+    ctx.arc(18.5, y0 + 16.5, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#4a3f35';
+    ctx.font = `900 16px ${FONT_STACK}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(GAME_TITLE, 31, y0 + 14);
+    ctx.restore();
+
+    const btnH = 28;
+    const muteW = 30;
+    const pillW = 44;
+    const pGap = 5;
+    const muteX = rightBound - muteW;
+    const skinX = muteX - pGap - pillW;
+    const rankX = skinX - pGap - pillW;
+
+    this.drawChipBtn(ctx, rankX, y0, pillW, btnH, '排行', 'open_leaderboard', false);
+    this.drawChipBtn(ctx, skinX, y0, pillW, btnH, '皮肤', 'open_skins', false);
+    this.drawChipBtn(ctx, muteX, y0, muteW, btnH, this.engine.save.data.settings.muted ? '静' : '音', 'toggle_mute', false);
+
+    // 2) Progress & quick-start banner
+    const cleared = this.engine.save.countCleared();
+    const gold = this.engine.save.countGoldFrames();
+    const totalLevels = this.engine.levels.length;
+    const allCleared = cleared >= totalLevels;
+    const nextPlayId = Math.min(totalLevels, Math.max(1, this.engine.save.data.highestUnlockedLevel));
+    const rankInfo = buildLeaderboard(this.engine.save, 'progress');
+
+    const bannerX = 12;
+    const bannerY = y0 + 38;
+    const bannerW = this.logicalW - 24;
+    const bannerH = 54;
+
+    ctx.save();
+    ctx.fillStyle = '#fffaf2';
+    ctx.shadowColor = 'rgba(80,60,30,0.12)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+    roundRectPath(ctx, bannerX, bannerY, bannerW, bannerH, 16);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = '#3d3530';
+    ctx.font = `900 14px ${FONT_STACK}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`选关画廊 · 已完成 ${cleared}/${totalLevels} 幅`, bannerX + 14, bannerY + 19);
+
+    ctx.fillStyle = '#8a7660';
+    ctx.font = `11px ${FONT_STACK}`;
+    ctx.fillText(`★ ${gold} 枚金框 · 最高连 ×${this.engine.save.data.globalBestChain} · 排行第${rankInfo.myEntry.rank}名`, bannerX + 14, bannerY + 38);
+    ctx.restore();
+
+    const ctaW = 94;
+    const ctaH = 34;
+    if (allCleared) {
+      this.drawActionBtn(ctx, bannerX + bannerW - ctaW - 10, bannerY + 10, ctaW, ctaH, '★ 全家福', 'open_collage', true, false);
+    } else {
+      const ctaLabel = cleared === 0 ? '开始第1关' : `继续第${nextPlayId}关`;
+      this.drawActionBtn(ctx, bannerX + bannerW - ctaW - 10, bannerY + 10, ctaW, ctaH, ctaLabel, 'select_level', true, false);
+      this.hitBoxes[this.hitBoxes.length - 1].payload = nextPlayId;
+    }
+
+    // 3) 4 x 5 Level Grid inside warm-wood gallery frame
     const cols = 4;
     const rows = 5;
-    const gap = 8;
-    const cw = (mw - 24 - (cols - 1) * gap) / cols;
-    const ch = Math.min(82, (this.logicalH - 200) / rows);
+    const pad = 9;
+    const gap = 7;
+    const gridBoxX = 12;
+    const gridBoxW = this.logicalW - 24;
+    const gridBoxTop = bannerY + bannerH + 10;
+    const bottomBarH = 38;
+    const bottomBarY = this.logicalH - safeBot - 22 - bottomBarH - 6;
+    const availH = Math.max(330, bottomBarY - 10 - gridBoxTop);
 
-    for (let idx = 0; idx < this.engine.levels.length; idx++) {
+    const cw = (gridBoxW - pad * 2 - (cols - 1) * gap) / cols;
+    const ch = Math.max(60, Math.min(92, Math.floor((availH - pad * 2 - (rows - 1) * gap) / rows)));
+    const gridBoxH = pad * 2 + rows * ch + (rows - 1) * gap;
+    const gridBoxY = gridBoxTop + Math.max(0, Math.floor((availH - gridBoxH) / 2));
+
+    // Warm gallery frame backdrop
+    ctx.save();
+    ctx.fillStyle = skin.frameShadow;
+    roundRectPath(ctx, gridBoxX, gridBoxY + 3, gridBoxW, gridBoxH, 18);
+    ctx.fill();
+    ctx.fillStyle = skin.frameOuter;
+    roundRectPath(ctx, gridBoxX, gridBoxY, gridBoxW, gridBoxH, 18);
+    ctx.fill();
+    ctx.fillStyle = '#efe3cf';
+    roundRectPath(ctx, gridBoxX + 4, gridBoxY + 4, gridBoxW - 8, gridBoxH - 8, 14);
+    ctx.fill();
+    ctx.restore();
+
+    for (let idx = 0; idx < totalLevels; idx++) {
       const lv = this.engine.levels[idx];
       const def = lv.def;
       const col = idx % cols;
       const row = Math.floor(idx / cols);
-      const x = mx + 12 + col * (cw + gap);
-      const y = my + 56 + row * (ch + gap);
+      const x = gridBoxX + pad + col * (cw + gap);
+      const y = gridBoxY + pad + row * (ch + gap);
 
       const rec = this.engine.save.data.clearedLevels[def.levelId];
       const unlocked = this.engine.isLevelUnlocked(def.levelId);
-      const isCur = def.levelId === this.engine.currentLevel().def.levelId;
+      const isNextPlayable = !rec && def.levelId === nextPlayId;
+      const numTag = String(def.levelId).padStart(2, '0');
 
       ctx.save();
-      ctx.fillStyle = rec ? '#fffdf8' : (unlocked ? '#f4ead8' : '#e6dccb');
-      roundRectPath(ctx, x, y, cw, ch, 12);
+      ctx.fillStyle = rec ? '#fffdf8' : (unlocked ? '#fff6e8' : '#e9dfd0');
+      roundRectPath(ctx, x, y, cw, ch, 11);
       ctx.fill();
 
       if (rec && rec.perfect) {
         ctx.strokeStyle = '#f2b705';
-        ctx.lineWidth = 2.5;
-        roundRectPath(ctx, x + 1, y + 1, cw - 2, ch - 2, 11);
+        ctx.lineWidth = 2.2;
+        roundRectPath(ctx, x + 1, y + 1, cw - 2, ch - 2, 10);
         ctx.stroke();
-      } else if (isCur) {
+      } else if (rec) {
+        ctx.strokeStyle = '#7bc494';
+        ctx.lineWidth = 1.5;
+        roundRectPath(ctx, x + 1, y + 1, cw - 2, ch - 2, 10);
+        ctx.stroke();
+      } else if (isNextPlayable) {
         ctx.strokeStyle = '#ff9d2e';
-        ctx.lineWidth = 2;
-        roundRectPath(ctx, x + 1, y + 1, cw - 2, ch - 2, 11);
+        ctx.lineWidth = 2.2;
+        roundRectPath(ctx, x + 1, y + 1, cw - 2, ch - 2, 10);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = 'rgba(138,118,96,0.22)';
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, x + 0.5, y + 0.5, cw - 1, ch - 1, 10.5);
         ctx.stroke();
       }
 
       if (rec) {
+        // Passed level: display completed colorful pixel painting
         ctx.fillStyle = skin.feltBg;
         roundRectPath(ctx, x + 5, y + 5, cw - 10, ch - 23, 7);
         ctx.fill();
         this.drawMiniArt(ctx, lv, x + 8, y + 8, cw - 16, ch - 29);
-      } else {
-        ctx.fillStyle = unlocked ? '#8a7660' : '#b2a38d';
-        ctx.font = `900 18px ${FONT_STACK}`;
+
+        // Compact top-left level number pill
+        ctx.fillStyle = 'rgba(61,53,48,0.68)';
+        roundRectPath(ctx, x + 6, y + 6, 18, 12, 4);
+        ctx.fill();
+        ctx.fillStyle = '#fffaf2';
+        ctx.font = `bold 8.5px ${FONT_STACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(unlocked ? `${def.levelId}` : '🔒', x + cw / 2, y + ch / 2 - 6);
+        ctx.fillText(numTag, x + 15, y + 12.5);
+
+        if (rec.perfect) {
+          ctx.fillStyle = '#f2b705';
+          ctx.font = `900 11px ${FONT_STACK}`;
+          ctx.textAlign = 'right';
+          ctx.fillText('★', x + cw - 6, y + 12.5);
+        }
+
+        // Painting name at bottom
+        ctx.fillStyle = '#3d3530';
+        ctx.font = `bold 10.5px ${FONT_STACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(def.name, x + cw / 2, y + ch - 4);
+      } else {
+        // Uncleared level: clearly show "待完成"
+        ctx.fillStyle = unlocked ? '#d97312' : '#9a8772';
+        ctx.font = `bold 9.5px ${FONT_STACK}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(numTag, x + 6, y + 5);
+
+        // Mini standing domino or unrevealed frame silhouette
+        const iconY = y + Math.max(14, Math.floor((ch - 46) * 0.45) + 10);
+        if (unlocked) {
+          const dw = 13;
+          const dh = 18;
+          const dx = x + (cw - dw) / 2;
+          ctx.fillStyle = skin.normalEdge;
+          roundRectPath(ctx, dx, iconY + 2, dw, dh, 3);
+          ctx.fill();
+          ctx.fillStyle = skin.normalTop;
+          roundRectPath(ctx, dx, iconY, dw, dh, 3);
+          ctx.fill();
+          ctx.fillStyle = skin.pipColor;
+          ctx.beginPath();
+          ctx.arc(dx + dw / 2, iconY + 5.5, 1.4, 0, Math.PI * 2);
+          ctx.arc(dx + dw / 2, iconY + 12.5, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const fw = 26;
+          const fh = 18;
+          const fx = x + (cw - fw) / 2;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(138,118,96,0.42)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([3, 2]);
+          roundRectPath(ctx, fx, iconY, fw, fh, 4);
+          ctx.stroke();
+          ctx.restore();
+          ctx.fillStyle = 'rgba(138,118,96,0.45)';
+          ctx.font = `bold 10px ${FONT_STACK}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('?', x + cw / 2, iconY + fh / 2 + 0.5);
+        }
+
+        // Clear "待完成" pill
+        const pillW2 = Math.min(cw - 12, 46);
+        const pillH2 = 16;
+        const px = x + (cw - pillW2) / 2;
+        const py = y + ch - 34;
+        ctx.fillStyle = unlocked ? '#ff9d2e' : 'rgba(138,118,96,0.18)';
+        roundRectPath(ctx, px, py, pillW2, pillH2, 999);
+        ctx.fill();
+        ctx.fillStyle = unlocked ? '#fffaf2' : '#7f6c58';
+        ctx.font = `bold 9.5px ${FONT_STACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('待完成', x + cw / 2, py + pillH2 / 2 + 0.5);
+
+        // Level number label at bottom
+        ctx.fillStyle = unlocked ? '#6f5c49' : '#9a8772';
+        ctx.font = `bold 10px ${FONT_STACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`第${def.levelId}关`, x + cw / 2, y + ch - 4);
       }
 
-      ctx.fillStyle = rec ? '#4a3f35' : '#8a7660';
-      ctx.font = `bold 11px ${FONT_STACK}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(rec ? def.name : `第${def.levelId}关`, x + cw / 2, y + ch - 4);
       ctx.restore();
 
-      if (unlocked) {
-        this.hitBoxes.push({ id: 'select_level', x, y, w: cw, h: ch, payload: def.levelId });
-      }
+      this.hitBoxes.push({
+        id: unlocked ? 'select_level' : 'locked_level',
+        x,
+        y,
+        w: cw,
+        h: ch,
+        payload: def.levelId
+      });
     }
 
-    // Bottom button: 20-art collage poster (unlocked when all 20 cleared)
-    const allCleared = this.engine.save.countCleared() >= this.engine.levels.length;
-    const by = my + 56 + rows * (ch + gap) + 6;
+    // 4) Bottom quick buttons: Leaderboard + 20-Art Collage Poster
+    const bGap = 8;
+    const halfW = (this.logicalW - 24 - bGap) / 2;
     this.drawActionBtn(
       ctx,
-      mx + 12,
-      by,
-      mw - 24,
-      38,
-      allCleared ? '★ 查看 20 画全家福拼贴海报' : `通关全部 20 关解锁全家福海报（${this.engine.save.countCleared()}/20）`,
+      12,
+      bottomBarY,
+      halfW,
+      bottomBarH,
+      `排行榜 · 第${rankInfo.myEntry.rank}名`,
+      'open_leaderboard',
+      !allCleared,
+      false
+    );
+    this.drawActionBtn(
+      ctx,
+      12 + halfW + bGap,
+      bottomBarY,
+      halfW,
+      bottomBarH,
+      allCleared ? '★ 20画全家福海报' : `全家福海报 (${cleared}/${totalLevels})`,
       'open_collage',
       allCleared,
       !allCleared
     );
+  }
+
+  /**
+   * Full Leaderboard Modal Overlay:
+   * - Supports Progress Rank ("通关画师榜"), Max-Chain Rank ("最强连锁榜"),
+   *   and WeChat Friends Cloud Rank ("微信好友") via openDataContext when on WeChat.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {SkinDef} skin
+   */
+  drawLeaderboardOverlay(ctx, skin) {
+    this.hitBoxes = [];
+    const hasFriends = this.hasWeChatFriendsRank();
+    const activeTab = (this.rankTab === 'friends' && !hasFriends) ? 'progress' : this.rankTab;
+    const rankData = buildLeaderboard(this.engine.save, activeTab === 'chain' ? 'chain' : 'progress');
+
+    const subtitle = activeTab === 'friends'
+      ? '微信好友实时成绩（过关自动同步云端）'
+      : `当前排第 ${rankData.myEntry.rank} 名 · ${this.engine.save.countCleared()}/20 画 · 最高连 ×${this.engine.save.data.globalBestChain}`;
+    this.drawModalBackdrop(ctx, '画师排行榜', subtitle, skin);
+
+    const mx = 14;
+    const my = 76;
+    const mw = this.logicalW - 28;
+    const mh = this.logicalH - 116;
+
+    // Tab strip
+    const tabY = my + 58;
+    const tabH = 30;
+    const tabPad = 12;
+    const tabGap = 6;
+    /** @type {{ id: LeaderboardTab; label: string }[]} */
+    const tabs = hasFriends
+      ? [
+          { id: 'progress', label: '通关榜' },
+          { id: 'chain', label: '连锁榜' },
+          { id: 'friends', label: '微信好友' }
+        ]
+      : [
+          { id: 'progress', label: '通关画师榜' },
+          { id: 'chain', label: '最强连锁榜' }
+        ];
+    const tabW = (mw - tabPad * 2 - (tabs.length - 1) * tabGap) / tabs.length;
+    tabs.forEach((t, i) => {
+      const tx = mx + tabPad + i * (tabW + tabGap);
+      const isAct = activeTab === t.id;
+      this.drawChipBtn(ctx, tx, tabY, tabW, tabH, t.label, 'switch_rank_tab', isAct);
+      this.hitBoxes[this.hitBoxes.length - 1].payload = t.id;
+    });
+
+    // Bottom pinned controls
+    const shareH = 36;
+    const shareY = my + mh - 12 - shareH;
+    const myCardH = 48;
+    const myCardY = shareY - 8 - myCardH;
+
+    // Scrollable list area
+    const listX = mx + 12;
+    const listY = tabY + tabH + 10;
+    const listW = mw - 24;
+    const listH = Math.max(120, myCardY - 10 - listY);
+    this.rankListRect = { x: listX, y: listY, w: listW, h: listH };
+
+    if (activeTab === 'friends' && hasFriends) {
+      const shared = this.platform.getOpenDataCanvas ? this.platform.getOpenDataCanvas() : null;
+      ctx.save();
+      ctx.fillStyle = '#f5ecdc';
+      roundRectPath(ctx, listX, listY, listW, listH, 12);
+      ctx.fill();
+      if (shared) {
+        roundRectPath(ctx, listX, listY, listW, listH, 12);
+        ctx.clip();
+        ctx.drawImage(
+          /** @type {CanvasImageSource} */ (/** @type {unknown} */ (shared)),
+          listX,
+          listY,
+          listW,
+          listH
+        );
+      }
+      ctx.restore();
+    } else {
+      const rowH = 44;
+      const rowGap = 6;
+      const totalContentH = rankData.entries.length * rowH + Math.max(0, rankData.entries.length - 1) * rowGap;
+      this.rankMaxScrollY = Math.max(0, totalContentH - listH);
+      this.rankScrollY = Math.max(0, Math.min(this.rankMaxScrollY, this.rankScrollY));
+
+      const medals = ['#f2b705', '#a8b2bd', '#d9823b'];
+
+      ctx.save();
+      roundRectPath(ctx, listX, listY, listW, listH, 12);
+      ctx.clip();
+
+      for (let i = 0; i < rankData.entries.length; i++) {
+        const entry = rankData.entries[i];
+        const ry = listY + i * (rowH + rowGap) - this.rankScrollY;
+        if (ry + rowH < listY || ry > listY + listH) continue;
+
+        ctx.fillStyle = entry.isMe ? '#fff1d6' : '#f8f0e2';
+        roundRectPath(ctx, listX, ry, listW - (this.rankMaxScrollY > 0 ? 6 : 0), rowH, 12);
+        ctx.fill();
+
+        if (entry.isMe) {
+          ctx.strokeStyle = '#f59d45';
+          ctx.lineWidth = 1.8;
+          roundRectPath(ctx, listX + 1, ry + 1, listW - (this.rankMaxScrollY > 0 ? 8 : 2), rowH - 2, 11);
+          ctx.stroke();
+        }
+
+        // Rank badge
+        const rx = listX + 20;
+        const rcy = ry + rowH / 2;
+        if (entry.rank <= 3) {
+          ctx.fillStyle = medals[entry.rank - 1];
+          ctx.beginPath();
+          ctx.arc(rx, rcy, 11, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `900 12px ${FONT_STACK}`;
+        } else {
+          ctx.fillStyle = entry.isMe ? '#d97312' : '#8a7660';
+          ctx.font = `bold 12px ${FONT_STACK}`;
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(entry.rank), rx, rcy + 0.5);
+
+        // Avatar circle
+        ctx.fillStyle = entry.avatarColor;
+        ctx.beginPath();
+        ctx.arc(listX + 47, rcy, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 12px ${FONT_STACK}`;
+        ctx.fillText(entry.avatarLabel, listX + 47, rcy + 0.5);
+
+        // Name
+        ctx.fillStyle = entry.isMe ? '#b85307' : '#3d3530';
+        ctx.font = `bold 13px ${FONT_STACK}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(entry.name, listX + 67, rcy + 0.5);
+
+        // Metrics on right
+        const rightX = listX + listW - (this.rankMaxScrollY > 0 ? 14 : 10);
+        ctx.textAlign = 'right';
+        if (activeTab === 'chain') {
+          ctx.fillStyle = '#d97312';
+          ctx.font = `900 13px ${FONT_STACK}`;
+          ctx.fillText(`最高 ×${entry.bestChain} 连`, rightX, ry + 16);
+          ctx.fillStyle = '#8a7660';
+          ctx.font = `10px ${FONT_STACK}`;
+          ctx.fillText(`${entry.clearedCount}/20 画 · ★${entry.goldFrames}`, rightX, ry + 32);
+        } else {
+          ctx.fillStyle = '#3d3530';
+          ctx.font = `900 13px ${FONT_STACK}`;
+          ctx.fillText(`${entry.clearedCount}/20 画`, rightX, ry + 16);
+          ctx.fillStyle = '#c48f11';
+          ctx.font = `10px ${FONT_STACK}`;
+          ctx.fillText(`★${entry.goldFrames} 金框 · ×${entry.bestChain}连`, rightX, ry + 32);
+        }
+      }
+
+      // Subtle scrollbar thumb when scrollable
+      if (this.rankMaxScrollY > 0) {
+        const thumbH = Math.max(28, (listH / totalContentH) * listH);
+        const thumbY = listY + (this.rankScrollY / this.rankMaxScrollY) * (listH - thumbH);
+        ctx.fillStyle = 'rgba(138,118,96,0.34)';
+        roundRectPath(ctx, listX + listW - 4, thumbY, 3.5, thumbH, 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Pinned "My Rank" footer summary card
+    ctx.save();
+    ctx.fillStyle = '#fff1d6';
+    ctx.strokeStyle = '#f2b705';
+    ctx.lineWidth = 1.5;
+    roundRectPath(ctx, listX, myCardY, listW, myCardH, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#3d3530';
+    ctx.font = `900 12.5px ${FONT_STACK}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`我的排名：第 ${rankData.myEntry.rank} 名`, listX + 12, myCardY + 16);
+
+    ctx.fillStyle = '#b85307';
+    ctx.font = `bold 11.5px ${FONT_STACK}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      `${rankData.myEntry.clearedCount}/20 画 · ★${rankData.myEntry.goldFrames} · ×${rankData.myEntry.bestChain}连`,
+      listX + listW - 12,
+      myCardY + 16
+    );
+
+    ctx.fillStyle = '#8a6b48';
+    ctx.font = `10.5px ${FONT_STACK}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(rankData.nextTargetHint, listX + 12, myCardY + 34);
+    ctx.restore();
+
+    this.drawActionBtn(ctx, listX, shareY, listW, shareH, '分享我的战绩', 'share_rank', true, false);
   }
 
   /**

@@ -25,6 +25,11 @@ export interface CanvasLike {
   getContext(type: '2d'): CanvasRenderingContext2D | null;
 }
 
+export interface CloudKVItem {
+  key: string;
+  value: string;
+}
+
 export interface IPlatformAdapter {
   readonly name: 'wx' | 'web' | 'xhs' | 'tt' | 'desktop';
   createMainCanvas(): CanvasLike;
@@ -44,4 +49,8 @@ export interface IPlatformAdapter {
   showRewardedAd(slotId: 'A1' | 'A2' | 'A3'): Promise<AdResult>;
   shareMessage(opts: { title: string; query?: string; imageUrl?: string }): void;
   reportEvent(eventId: string, data?: Record<string, string | number | boolean>): void;
+  submitLeaderboardScore?(kvList: CloudKVItem[]): void;
+  getOpenDataCanvas?(): CanvasLike | null;
+  postOpenDataMessage?(msg: Record<string, unknown>): void;
 }
+

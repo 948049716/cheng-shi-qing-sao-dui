@@ -8,6 +8,7 @@ import {
   stepDelayMs
 } from './core/constants.js';
 import { GameEngine } from './core/engine.js';
+import { buildCloudKVData, buildLeaderboard } from './core/leaderboard.js';
 import { SaveManager } from './core/save.js';
 import { CanvasRenderer } from './renderer/canvas-renderer.js';
 
@@ -35,6 +36,10 @@ export async function bootstrap(platform) {
   sound.soundStyle = getSkinById(save.getActiveSkinId()).soundStyle;
 
   const renderer = new CanvasRenderer(platform, engine);
+
+  if (save.countCleared() > 0 && platform.submitLeaderboardScore) {
+    platform.submitLeaderboardScore(buildCloudKVData(save));
+  }
 
   // Active cascade playback queue driven strictly by rAF timestamps (pause-safe, zero setTimeout drift)
   /** @type {{ triggerMs: number; ev: CascadeEvent; comboN: number; voiceInLayer: number }[]} */
@@ -101,6 +106,9 @@ export async function bootstrap(platform) {
     } else if (ev.type === 'LEVEL_WON') {
       renderer.triggerWinCelebration(now);
       sound.playWin();
+      if (platform.submitLeaderboardScore) {
+        platform.submitLeaderboardScore(buildCloudKVData(save));
+      }
       if (ev.newlyUnlockedSkins.length) {
         const s = getSkinById(ev.newlyUnlockedSkins[0]);
         renderer.showToast(`🎉 解锁新皮肤：${s.name}！`, now);
@@ -163,6 +171,8 @@ export async function bootstrap(platform) {
   // Gesture state machine (docs/04 §3.2)
   /** @type {{ cellIndex: number; x0: number; y0: number; dir: Dir | null } | null} */
   let boardDrag = null;
+  /** @type {{ lastY: number } | null} */
+  let rankDrag = null;
 
   /**
    * @param {string} id
@@ -172,8 +182,17 @@ export async function bootstrap(platform) {
     if (id === 'close_overlay') {
       renderer.overlay = 'none';
       sound.playUndo();
-    } else if (id === 'open_gallery') {
-      renderer.overlay = 'gallery';
+    } else if (id === 'back_select' || id === 'open_gallery') {
+      if (engine.busy) return;
+      renderer.overlay = 'none';
+      renderer.screen = 'select';
+      sound.playUndo();
+    } else if (id === 'open_leaderboard') {
+      renderer.openLeaderboard();
+      sound.playUndo();
+      platform.reportEvent('open_leaderboard', { cleared: save.countCleared() });
+    } else if (id === 'switch_rank_tab' && (payload === 'progress' || payload === 'chain' || payload === 'friends')) {
+      renderer.openLeaderboard(payload);
       sound.playUndo();
     } else if (id === 'open_skins') {
       renderer.overlay = 'skins';
@@ -203,7 +222,8 @@ export async function bootstrap(platform) {
       sound.playUndo();
     } else if (id === 'next_level') {
       if (!engine.nextLevel()) {
-        renderer.overlay = 'gallery';
+        renderer.overlay = 'none';
+        renderer.screen = 'select';
       }
       sound.playUndo();
     } else if (id === 'hint') {
@@ -223,8 +243,14 @@ export async function bootstrap(platform) {
         });
       }
     } else if (id === 'select_level' && typeof payload === 'number') {
+      if (engine.busy) return;
       renderer.overlay = 'none';
+      renderer.screen = 'play';
       engine.loadLevelById(payload, false);
+      sound.playUndo();
+    } else if (id === 'locked_level' && typeof payload === 'number') {
+      const needId = Math.max(1, save.data.highestUnlockedLevel);
+      renderer.showToast(`推倒第 ${needId} 关后逐步解锁第 ${payload} 关`, currentNowMs);
       sound.playUndo();
     } else if (id === 'equip_skin' && typeof payload === 'string') {
       engine.equipSkin(payload);
@@ -239,6 +265,13 @@ export async function bootstrap(platform) {
       });
       platform.reportEvent('share_event', { scene: 'collage', level_id: 20 });
       renderer.showToast('已呼出分享面板', currentNowMs);
+    } else if (id === 'share_rank') {
+      const rankInfo = buildLeaderboard(save, 'progress');
+      platform.shareMessage({
+        title: `我在《推倒一幅画》排第 ${rankInfo.myEntry.rank} 名！已点亮 ${save.countCleared()}/20 幅画，最高连 ×${save.data.globalBestChain}！`
+      });
+      platform.reportEvent('share_event', { scene: 'leaderboard', cleared: save.countCleared() });
+      renderer.showToast('已呼出战绩分享', currentNowMs);
     }
   }
 
@@ -250,7 +283,14 @@ export async function bootstrap(platform) {
       handleUIButton(hit.id, hit.payload);
       return;
     }
-    if (renderer.overlay !== 'none') return;
+    if (renderer.overlay === 'leaderboard') {
+      const r = renderer.rankListRect;
+      if (pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h) {
+        rankDrag = { lastY: pt.y };
+      }
+      return;
+    }
+    if (renderer.overlay !== 'none' || renderer.screen !== 'play') return;
 
     const snap = engine.getSnapshot();
     if (snap.busy || snap.ended !== 'playing') return;
@@ -264,8 +304,14 @@ export async function bootstrap(platform) {
   });
 
   platform.onPointerMove(p => {
-    if (!boardDrag) return;
     const pt = renderer.screenToLogical(p.x, p.y);
+    if (rankDrag) {
+      const dy = rankDrag.lastY - pt.y;
+      rankDrag.lastY = pt.y;
+      renderer.scrollLeaderboard(dy);
+      return;
+    }
+    if (!boardDrag) return;
     const dx = pt.x - boardDrag.x0;
     const dy = pt.y - boardDrag.y0;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD_PX) return;
@@ -280,6 +326,7 @@ export async function bootstrap(platform) {
   });
 
   platform.onPointerUp(() => {
+    rankDrag = null;
     if (!boardDrag) return;
     const d = boardDrag;
     boardDrag = null;
@@ -319,6 +366,7 @@ export async function bootstrap(platform) {
     platform.requestAnimationFrame(frame);
   }
 
+  renderer.render(0, 1 / 60);
   platform.requestAnimationFrame(frame);
   return { engine, save, sound, renderer };
 }

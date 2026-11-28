@@ -126,3 +126,18 @@ export type GameDomainEvent =
   | { type: 'LEVEL_FAILED'; remainingStanding: number; canWatchAd: boolean }
   | { type: 'SKIN_CHANGED'; skinId: string }
   | { type: 'TOAST'; message: string };
+
+export type LeaderboardTab = 'progress' | 'chain' | 'friends';
+
+export interface LeaderboardEntry {
+  id: string;
+  name: string;
+  avatarColor: string;
+  avatarLabel: string;
+  clearedCount: number;
+  goldFrames: number;
+  bestChain: number;
+  isMe?: boolean;
+  rank: number;
+}
+

@@ -39,9 +39,24 @@ declare namespace WechatMinigame {
     onError(cb: (err: unknown) => void): void;
     offError(cb: (err: unknown) => void): void;
   }
+  interface OpenDataContext {
+    canvas: Canvas;
+    postMessage(message: Record<string, unknown>): void;
+  }
+  interface KVData {
+    key: string;
+    value: string;
+  }
+  interface UserGameData {
+    avatarUrl: string;
+    nickname: string;
+    openid?: string;
+    KVDataList: KVData[];
+  }
   interface Wx {
     createCanvas(): Canvas;
     createOffscreenCanvas(opts: { type: '2d'; width: number; height: number }): Canvas;
+    createImage?(): HTMLImageElement;
     getWindowInfo?(): WindowInfo;
     getSystemInfoSync(): WindowInfo;
     getMenuButtonBoundingClientRect?(): MenuButtonRect;
@@ -63,7 +78,17 @@ declare namespace WechatMinigame {
     shareAppMessage?(opts: { title: string; query?: string; imageUrl?: string }): void;
     showShareMenu?(opts: { withShareTicket?: boolean; menus?: string[] }): void;
     reportEvent?(eventId: string, data?: Record<string, string | number | boolean>): void;
+    setUserCloudStorage?(opts: { KVDataList: KVData[]; success?: () => void; fail?: (err: unknown) => void }): void;
+    getOpenDataContext?(): OpenDataContext;
+    getSharedCanvas?(): Canvas;
+    onMessage?(cb: (data: Record<string, unknown>) => void): void;
+    getFriendCloudStorage?(opts: {
+      keyList: string[];
+      success?: (res: { data: UserGameData[] }) => void;
+      fail?: (err: unknown) => void;
+    }): void;
   }
 }
 
 declare const wx: WechatMinigame.Wx;
+

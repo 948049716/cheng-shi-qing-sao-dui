@@ -12,6 +12,7 @@ import {
   SAVE_KEY_MAIN
 } from '../minigame/src/core/constants.js';
 import { GameEngine } from '../minigame/src/core/engine.js';
+import { buildCloudKVData, buildLeaderboard, computeProgressScore } from '../minigame/src/core/leaderboard.js';
 import { SaveManager } from '../minigame/src/core/save.js';
 import { compileLevel, countStanding, simulatePush } from '../minigame/src/core/simulator.js';
 
@@ -222,3 +223,62 @@ test('Full 20-level playthrough unlocks all 3 skins (5/12/18 gold frames), colla
   assert.equal(save.data.unlockedSkins.length, 4); // default + 3 unlockable skins
   assert.equal(allClearedFired, true);
 });
+
+test('Leaderboard: climbs rank live on level clears and sorts both progress and chain tabs deterministically', () => {
+  const { engine, save } = makeEngine();
+  const initialProg = buildLeaderboard(save, 'progress');
+  assert.equal(initialProg.myEntry.rank, 11);
+  assert.equal(initialProg.entries.length, 11);
+  assert.match(initialProg.nextTargetHint, /再通关 1 关/);
+
+  // Clear Level 1 (22 chain, 1 gold frame) -> overtakes bottom benchmark (1 cleared, 0 gold, 18 chain)
+  const lv1 = engine.currentLevel();
+  const [y1, x1, d1] = lv1.def.sol[0];
+  engine.pushCell(y1 * lv1.W + x1, d1);
+  engine.completeCascade();
+
+  const afterLv1Prog = buildLeaderboard(save, 'progress');
+  assert.equal(afterLv1Prog.myEntry.clearedCount, 1);
+  assert.equal(afterLv1Prog.myEntry.goldFrames, 1);
+  assert.equal(afterLv1Prog.myEntry.rank, 10);
+
+  const afterLv1Chain = buildLeaderboard(save, 'chain');
+  assert.equal(afterLv1Chain.myEntry.bestChain, 22);
+  assert.equal(afterLv1Chain.myEntry.rank, 10);
+
+  // Clear all 20 levels perfectly -> reaches #1 on both tabs
+  for (let id = 2; id <= 20; id++) {
+    engine.loadLevelById(id);
+    const lv = engine.currentLevel();
+    for (const [y, x, d] of lv.def.sol) {
+      engine.pushCell(y * lv.W + x, d);
+      engine.completeCascade();
+    }
+  }
+  const topProg = buildLeaderboard(save, 'progress');
+  assert.equal(topProg.myEntry.rank, 1);
+  assert.match(topProg.nextTargetHint, /登顶/);
+
+  const topChain = buildLeaderboard(save, 'chain');
+  assert.equal(topChain.myEntry.rank, 1);
+  assert.equal(topChain.myEntry.bestChain, 74);
+});
+
+test('Leaderboard: buildCloudKVData outputs valid WeChat setUserCloudStorage KVDataList', () => {
+  const { engine, save } = makeEngine();
+  const lv1 = engine.currentLevel();
+  const [y1, x1, d1] = lv1.def.sol[0];
+  engine.pushCell(y1 * lv1.W + x1, d1);
+  engine.completeCascade();
+
+  const kv = buildCloudKVData(save);
+  const byKey = Object.fromEntries(kv.map(item => [item.key, item.value]));
+  assert.equal(byKey.cleared_count, '1');
+  assert.equal(byKey.gold_frames, '1');
+  assert.equal(byKey.best_chain, '22');
+
+  const wxPayload = JSON.parse(byKey.wxgame_score);
+  assert.equal(wxPayload.wxgame.score, computeProgressScore(1, 1, 22));
+  assert.equal(typeof wxPayload.wxgame.update_time, 'number');
+});
+
