@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>推倒一幅画</title>
+<script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+<style>
+  html,body{-webkit-tap-highlight-color:transparent;}
+  .game{background:linear-gradient(180deg,#fff9f0 0%,#f3e6d0 100%);color:#4a3f35;box-shadow:0 10px 30px rgba(80,60,30,.18);}
+  .chip{min-width:44px;border-radius:12px;background:#efe2cc;color:#7a6650;font-weight:800;line-height:1.1;padding:6px 8px;transition:transform .1s;}
+  .chip.cur{background:#ffb84d;color:#fff;box-shadow:0 3px 0 #d98a1c;}
+  .chip:active{transform:scale(.94);}
+  .chip small{display:block;font-size:12px;}
+  .felt{position:relative;border-radius:20px;padding:10px;
+    background:#8fc7a5;background-image:radial-gradient(rgba(255,255,255,.12) 1px,transparent 1px);background-size:7px 7px;
+    box-shadow:inset 0 3px 10px rgba(20,70,40,.3),0 0 0 6px #b58456,0 6px 0 6px #8e623a;}
+  .grid{display:grid;gap:3px;touch-action:none;margin:0 auto;width:max-content;}
+  .cell{position:relative;width:var(--cs);height:var(--cs);}
+  .cell.void{pointer-events:none;}
+  .tile{position:absolute;inset:2%;border-radius:18%;opacity:0;box-shadow:inset 0 -3px 0 rgba(0,0,0,.14),inset 0 2px 0 rgba(255,255,255,.35);}
+  .down .tile{opacity:1;}
+  .dom{position:absolute;inset:8%;border-radius:24%;background:linear-gradient(180deg,#fffdf8,#efe4cf);
+    box-shadow:0 4px 0 #c8b38c,0 6px 7px rgba(60,40,20,.3),inset 0 1px 0 #fff;
+    display:flex;align-items:center;justify-content:center;transition:transform .08s;cursor:grab;}
+  .down .dom{display:none;}
+  .press .dom{transform:translateY(2px) scale(.94);box-shadow:0 2px 0 #c8b38c,0 3px 4px rgba(60,40,20,.3);}
+  .pips{display:flex;flex-direction:column;gap:calc(var(--cs)*.1);}
+  .pips i{display:block;width:calc(var(--cs)*.13);height:calc(var(--cs)*.13);border-radius:50%;background:#6b5644;}
+  .sym{font-weight:900;line-height:1;font-size:calc(var(--cs)*.5);}
+  .turn .dom{background:linear-gradient(180deg,#f4fbff,#d9ecf8);box-shadow:0 4px 0 #8fb6d1,0 6px 7px rgba(30,60,90,.3),inset 0 1px 0 #fff;}
+  .turn .sym{color:#2d7fc1;}
+  .split .dom{background:linear-gradient(180deg,#fff6ea,#ffe0b8);box-shadow:0 4px 0 #e0a35a,0 6px 7px rgba(90,50,10,.3),inset 0 1px 0 #fff;}
+  .split .sym{color:#ea7a12;}
+  .ghost{position:absolute;inset:-30%;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:calc(var(--cs)*.8);color:rgba(255,255,255,.95);text-shadow:0 2px 4px rgba(0,0,0,.35);font-weight:900;z-index:3;}
+  .fx{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:4;}
+  .frag{position:absolute;width:5px;height:5px;border-radius:2px;}
+  .combo{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font-weight:900;font-size:30px;color:#fff;
+    text-shadow:0 3px 0 #e07b17,0 0 12px rgba(255,170,60,.8);opacity:0;pointer-events:none;z-index:5;white-space:nowrap;}
+  .toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#4a3f35;color:#fff9f0;padding:6px 14px;border-radius:999px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;z-index:6;white-space:nowrap;}
+  .toast.show{opacity:1;}
+  .hand{position:absolute;font-size:30px;pointer-events:none;z-index:6;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
+  .tool{flex:1;border-radius:14px;padding:10px 4px;font-weight:800;background:#efe2cc;color:#7a6650;transition:transform .1s;}
+  .tool.on{background:#4a3f35;color:#fff9f0;}
+  .tool:active{transform:scale(.95);}
+  .tool:disabled{opacity:.4;}
+  .panel{display:none;margin-top:14px;border-radius:22px;background:#fffaf2;box-shadow:0 4px 18px rgba(80,60,30,.15);padding:14px 16px;text-align:center;}
+  .panel.show{display:block;animation:panelIn .45s cubic-bezier(.2,1.3,.4,1);}
+  .ended #tools,.ended #rules{display:none;}
+  .dot{display:inline-block;width:12px;height:16px;border-radius:4px;margin-left:3px;background:#fffdf8;box-shadow:0 2px 0 #c8b38c;vertical-align:-3px;}
+  .dot.used{background:#d9ccb5;box-shadow:none;}
+  @keyframes panelIn{0%{transform:translateY(30px);opacity:0}100%{transform:none;opacity:1}}
+  @keyframes wig{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+</style>
+</head>
+<body class="antialiased m-0 p-0" style="background:var(--background,#efe7da);color:var(--foreground,#4a3f35)">
+<div class="mx-auto max-w-[440px] p-2 sm:p-4 select-none">
+  <div id="game" class="game relative rounded-[28px] p-3 overflow-hidden">
+    <div class="flex items-center justify-between gap-2">
+      <div class="text-lg font-black tracking-wide flex items-center gap-2"><span style="display:inline-flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;width:14px;height:22px;border-radius:4px;background:#fffdf8;box-shadow:0 2px 0 #c8b38c"><i style="width:4px;height:4px;border-radius:50%;background:#6b5644"></i><i style="width:4px;height:4px;border-radius:50%;background:#6b5644"></i></span>推倒一幅画</div>
+      <button id="mute" class="text-lg w-9 h-9 rounded-full bg-[#efe2cc]" title="声音">🔊</button>
+    </div>
+    <div id="chips" class="flex gap-2 mt-3 overflow-x-auto pb-1 text-sm"></div>
+    <div class="flex items-center justify-between mt-2 mb-3 text-xs font-bold text-[#8a7660]">
+      <span id="lvlName">第 1 关</span>
+      <span>推力 <span id="dots"></span></span>
+    </div>
+
+    <div id="tableWrap" class="felt">
+      <div id="board"></div>
+      <div id="fx" class="fx"></div>
+      <div id="combo" class="combo">×0</div>
+      <div id="toast" class="toast text-xs"></div>
+    </div>
+
+    <div id="tools" class="flex gap-2 mt-5 text-sm">
+      <button class="tool" id="undoBtn">↶ 撤销</button>
+      <button class="tool" id="hintBtn">💡 提示 <span id="hintN">3</span></button>
+      <button class="tool" id="resetBtn">↺ 重摆</button>
+    </div>
+
+    <details id="rules" class="mt-3 text-xs text-[#7a6650] leading-relaxed">
+      <summary class="font-bold cursor-pointer">玩法说明</summary>
+      <div class="mt-1 space-y-1">
+        <p>按住一块骨牌往一个方向<b>滑</b>，它倒下时会撞倒前面那块，一路连锁下去。骨牌倒下后翻出彩色的一面，全部推倒就拼成了一幅画。</p>
+        <p><b style="color:#2d7fc1">➜ 转向牌</b>：不管从哪边被撞，都朝箭头方向倒。<b style="color:#ea7a12">✢ 分岔牌</b>：同时撞向前、左、右三个方向。<br>已经倒下的骨牌会<b>挡住</b>后面的连锁，所以先推哪一块很重要。推力有限，想想怎么用最少的推力推倒整幅画。</p>
+      </div>
+    </details>
+
+    <div id="winPanel" class="panel">
+      <div class="text-xs font-bold text-[#8a7660]">全部推倒！</div>
+      <div id="winTitle" class="text-2xl font-black mt-1"></div>
+      <div id="winInfo" class="text-xs text-[#8a7660] mt-1"></div>
+      <div class="flex gap-2 mt-4">
+        <button id="againBtn" class="tool">再推一次</button>
+        <button id="nextBtn" class="tool on">下一关 →</button>
+      </div>
+    </div>
+    <div id="failPanel" class="panel">
+      <div class="text-lg font-black">推力用完啦</div>
+      <div id="failInfo" class="text-xs text-[#8a7660] mt-1"></div>
+      <div class="flex gap-2 mt-4">
+        <button id="failUndo" class="tool">↶ 撤销一步</button>
+        <button id="failReset" class="tool on">↺ 重新摆好</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LEVELS = [{"name":"小花","emoji":"🌸","art":[".PPP.","PPYPP","PYYYP","PPYPP",".GPG.","..G.."],"types":[" .<. ","v+++v",".....","....."," ... ","  .  "],"sol":[[5,2,"^"]],"limit":1},{"name":"爱心","emoji":"❤️","art":[".RR.RR.","RRRRRRR","RRRRRRR","RRRRRRR",".RRRRR.","..RRR..","...R..."],"types":[" .< .< ","v.+<v+v",".......",">+....."," ..... ","  ...  ","   .   "],"sol":[[6,3,"^"],[4,5,"^"]],"limit":2},{"name":"蘑菇","emoji":"🍄","art":["..RRRR..",".RRWWRR.","RWRRRRWR","RRRRRRRR","..TTTT..","..TTTT..","..TTTT.."],"types":["  ...v  "," ....+. ",">......v","..+vv..<","  ....  ","  ....  ","  ^.+^  "],"sol":[[3,0,"^"],[0,2,">"]],"limit":2},{"name":"小猫","emoji":"🐱","art":["O......O","OO....OO","OOOOOOOO","OKOOOOKO","OOOPPOOO","OOOOOOOO",".OOOOOO.",".OO..OO."],"types":[".      .",".<    ..","..v...<.",".......^",".......v","^+.....<"," .>...v "," >^  .< "],"sol":[[4,3,">"],[3,3,">"],[1,6,"v"]],"limit":3},{"name":"小房子","emoji":"🏠","art":["....RR....","...RRRR...","..RRRRRR..",".RRRRRRRR.","RRRRRRRRRR",".CCCCCCCC.",".CBBCCYYC.",".CBBCCYYC.",".CBBCCCCC.","GGBBGGGGGG"],"types":["    .<    ","   v.+v   ","  .+..>.  "," v...^... ",".+........"," >......v "," ......<. "," +.....^< "," >......v ","........+."],"sol":[[7,6,"<"],[3,4,"<"],[3,8,"<"]],"limit":3},{"name":"小鸭子","emoji":"🐥","art":["...YYY....","..YYYYY...","..YKYYYOO.","..YYYYYOO.","...YYY....",".YYYYYYY..","YYYYYYYYY.","YYYYYYYYYY",".YYYYYYYY.","..YYYYYY.."],"types":["   .>v    ","  >....   ","  ++..^.< ","  >.....^ ","   ...    "," ..<.>..  ","v...+.... ",">.......+."," ^..+...^ ","  ..+...  "],"sol":[[6,8,"<"],[2,2,">"],[3,6,">"]],"limit":3}];
+const PAL={R:'#ef5a5f',G:'#5bbf6e',B:'#9a6440',W:'#ffffff',T:'#e8c48a',O:'#f59d45',P:'#ff8fb0',Y:'#ffd23f',C:'#f6dfb3',K:'#3d3530'};
+const DIRS=['^','>','v','<'], DV={'^':[-1,0],'>':[0,1],'v':[1,0],'<':[0,-1]}, ROT={'>':0,'v':90,'<':180,'^':-90};
+const Lf=d=>DIRS[(DIRS.indexOf(d)+3)%4], Rt=d=>DIRS[(DIRS.indexOf(d)+1)%4];
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- audio ---------- */
+let AC=null,noiseBuf=null,muted=store.get('dm_muted',false);
+function ensureAudio(){
+  if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;AC=new C();
+    const len=Math.floor(AC.sampleRate*0.03);noiseBuf=AC.createBuffer(1,len,AC.sampleRate);const d=noiseBuf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,4);}
+  if(AC.state==='suspended')AC.resume();
+}
+const PENTA=[1,9/8,5/4,3/2,5/3];
+function noteFreq(step){const n=step<12?step:10+((step-10)%5);return 392*PENTA[n%5]*Math.pow(2,Math.floor(n/5));}
+function sClack(step,vol=1){
+  if(!AC||muted)return;const t=AC.currentTime;
+  const n=AC.createBufferSource();n.buffer=noiseBuf;const hp=AC.createBiquadFilter();hp.type='bandpass';hp.frequency.value=3200;hp.Q.value=1.4;
+  const g=AC.createGain();g.gain.setValueAtTime(0.55*vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.03);
+  n.connect(hp).connect(g).connect(AC.destination);n.start(t);
+  const f=noteFreq(step);
+  [[f,'sine',0.2],[f*4,'sine',0.035]].forEach(([fr,ty,v])=>{const o=AC.createOscillator();o.type=ty;o.frequency.value=fr;
+    const g2=AC.createGain();g2.gain.setValueAtTime(v*vol,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    o.connect(g2).connect(AC.destination);o.start(t);o.stop(t+0.2);});
+}
+function tone(f,dur,vol=0.16,delay=0,type='sine'){if(!AC||muted)return;const t=AC.currentTime+delay;const o=AC.createOscillator();o.type=type;o.frequency.value=f;
+  const g=AC.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+.02);}
+const sWin=()=>[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.5,0.15,i*0.08));
+const sBlock=()=>tone(160,0.15,0.25,0,'triangle');
+const vib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+
+/* ---------- state ---------- */
+let lvl=Math.min(store.get('dm_lvl',0),LEVELS.length-1);
+const done=store.get('dm_done',{});
+let G=null;
+const tableWrap=$('#tableWrap'),fx=$('#fx');
+
+function renderChips(){
+  const box=$('#chips');box.innerHTML='';
+  LEVELS.forEach((L,i)=>{const b=document.createElement('button');b.className='chip'+(i===lvl?' cur':'');
+    b.innerHTML=`${done[i]?L.emoji:i+1}<small>${L.art[0].length}×${L.art.length}</small>`;
+    b.onclick=()=>{if(G&&G.busy)return;lvl=i;store.set('dm_lvl',lvl);start();};box.appendChild(b);});
+}
+
+function start(keepHints=false){
+  const prevHints = keepHints && G ? G.hints : 3;
+  const L=LEVELS[lvl],H=L.art.length,W=L.art[0].length;
+  const present=[...L.art.join('')].map(c=>c!=='.'?1:0);
+  const types=[...L.types.join('')].map(c=>c===' '?null:c);
+  G={L,H,W,present,types,fallen:present.map(()=>0),used:0,limit:L.limit,hist:[],busy:false,best:0,hints:prevHints,ended:false,cells:[],total:present.filter(Boolean).length};
+  $('#game').classList.remove('ended');$('#winPanel').classList.remove('show');$('#failPanel').classList.remove('show');
+  $('#lvlName').textContent=`第 ${lvl+1} 关 · ${L.name.replace(/./g,'?')}`;
+  $('#rules').open=lvl===0;
+  renderChips();buildBoard();updateUI();
+  hideHand();if(lvl===0){const g0=G;setTimeout(()=>{if(G===g0&&!G.used)showHand(L.sol[0]);},500);}
+}
+
+function buildBoard(){
+  const board=$('#board');board.innerHTML='';
+  const g=document.createElement('div');g.className='grid';G.grid=g;
+  for(let i=0;i<G.H*G.W;i++){
+    const c=document.createElement('div');c.className='cell';c.dataset.i=i;
+    if(!G.present[i]){c.classList.add('void');g.appendChild(c);G.cells.push(c);continue;}
+    const ch=G.L.art[Math.floor(i/G.W)][i%G.W],t=G.types[i];
+    const tile=document.createElement('div');tile.className='tile';tile.style.background=PAL[ch];
+    const dom=document.createElement('div');dom.className='dom';
+    if(t==='.')dom.innerHTML='<div class="pips"><i></i><i></i></div>';
+    else if(t==='+'){c.classList.add('split');dom.innerHTML='<span class="sym">✢</span>';}
+    else{c.classList.add('turn');dom.innerHTML=`<span class="sym" style="display:inline-block;transform:rotate(${ROT[t]}deg)">➜</span>`;}
+    c.append(tile,dom);g.appendChild(c);G.cells.push(c);
+  }
+  board.appendChild(g);size();bindInput(g);
+}
+function size(){
+  if(!G)return;const avail=tableWrap.clientWidth-20;
+  const cs=Math.max(24,Math.min(58,Math.floor((avail-(G.W-1)*3)/G.W)));
+  G.grid.style.setProperty('--cs',cs+'px');G.grid.style.gridTemplateColumns=`repeat(${G.W},${cs}px)`;G.cs=cs;
+}
+window.addEventListener('resize',size);
+
+function updateUI(){
+  $('#dots').innerHTML=Array.from({length:G.limit},(_,k)=>`<span class="dot${k<G.used?' used':''}"></span>`).join('');
+  $('#undoBtn').disabled=!G.hist.length;$('#hintN').textContent=G.hints;$('#hintBtn').disabled=G.hints<=0;
+}
+
+/* ---------- simulation (same rules as level generator) ---------- */
+function simulate(fallen,y0,x0,d0){
+  const f=fallen.slice(),ev=[],q=[[y0,x0,d0,0]];
+  for(let qi=0;qi<q.length;qi++){
+    const [y,x,d,t]=q[qi];if(y<0||x<0||y>=G.H||x>=G.W)continue;
+    const i=y*G.W+x;if(!G.present[i]||f[i])continue;
+    f[i]=1;const tp=G.types[i];const fd=(tp==='.'||tp==='+')?d:tp;ev.push({i,fd,t});
+    const emit=tp==='+'?[d,Lf(d),Rt(d)]:[fd];
+    for(const e of emit)q.push([y+DV[e][0],x+DV[e][1],e,t+1]);
+  }
+  return {f,ev};
+}
+
+/* ---------- input: press + swipe ---------- */
+function bindInput(g){
+  let drag=null;
+  g.addEventListener('contextmenu',e=>e.preventDefault());
+  g.addEventListener('pointerdown',e=>{
+    const c=e.target.closest('.cell');if(!c||c.classList.contains('void')||c.classList.contains('down'))return;
+    e.preventDefault();ensureAudio();
+    if(G.busy||G.ended)return;
+    if(G.used>=G.limit){toast('推力用完了，撤销或重摆吧');return;}
+    drag={c,i:+c.dataset.i,x0:e.clientX,y0:e.clientY,dir:null,ghost:null};c.classList.add('press');
+    try{g.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  g.addEventListener('pointermove',e=>{
+    if(!drag)return;const dx=e.clientX-drag.x0,dy=e.clientY-drag.y0;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<12)return;
+    const t=G.types[drag.i];
+    const dir=(t!=='.'&&t!=='+')?t:(Math.abs(dx)>Math.abs(dy)?(dx>0?'>':'<'):(dy>0?'v':'^'));
+    if(dir!==drag.dir){drag.dir=dir;
+      if(!drag.ghost){drag.ghost=document.createElement('div');drag.ghost.className='ghost';drag.c.appendChild(drag.ghost);}
+      drag.ghost.innerHTML=`<span style="display:inline-block;transform:rotate(${ROT[dir]}deg)">➜</span>`;}
+  });
+  const up=()=>{
+    if(!drag)return;const d=drag;drag=null;d.c.classList.remove('press');if(d.ghost)d.ghost.remove();
+    const t=G.types[d.i];
+    if(d.dir)push(d.i,d.dir);
+    else if(t!=='.'&&t!=='+')push(d.i,t);
+    else{toast('按住骨牌，往要推倒的方向滑一下');d.c.querySelector('.dom').animate([{transform:'rotate(0)'},{transform:'rotate(-8deg)'},{transform:'rotate(8deg)'},{transform:'rotate(0)'}],{duration:300});}
+  };
+  g.addEventListener('pointerup',up);g.addEventListener('pointercancel',()=>{if(drag){drag.c.classList.remove('press');if(drag.ghost)drag.ghost.remove();drag=null;}});
+}
+
+/* ---------- push & cascade ---------- */
+function stepDelay(t){return Math.max(42,130*Math.pow(0.9,t));}
+function push(i,dir){
+  hideHand();
+  const y=Math.floor(i/G.W),x=i%G.W;
+  const {f,ev}=simulate(G.fallen,y,x,dir);
+  G.hist.push({fallen:G.fallen.slice(),used:G.used});
+  G.fallen=f;G.used++;G.busy=true;updateUI();
+  const times=[0];const maxT=ev.length?ev[ev.length-1].t:0;
+  for(let t=1;t<=maxT+1;t++)times[t]=times[t-1]+stepDelay(t-1);
+  const perStep={};let lastVib=0;
+  ev.forEach((e,n)=>setTimeout(()=>{
+    fall(e.i,e.fd,n);
+    perStep[e.t]=(perStep[e.t]||0)+1;
+    if(perStep[e.t]<=2)sClack(e.t,perStep[e.t]===1?1:0.6);
+    const now=performance.now();if(now-lastVib>45){vib(8);lastVib=now;}
+    showCombo(n+1);
+  },times[e.t]));
+  setTimeout(()=>finishChain(ev.length),times[maxT]+380);
+}
+function fall(i,fd,n){
+  const c=G.cells[i],[dy,dx]=DV[fd];const tile=c.querySelector('.tile'),dom=c.querySelector('.dom');
+  const ghostDom=dom.cloneNode(true);ghostDom.style.zIndex=2;c.appendChild(ghostDom);
+  c.classList.add('down');
+  ghostDom.style.display='flex';
+  ghostDom.animate([{transform:'none',opacity:1},{transform:`translate(${dx*45}%,${dy*45}%) scale(${dx?0.35:1.15},${dy?0.35:1.15})`,opacity:0}],{duration:150,easing:'ease-in'}).onfinish=()=>ghostDom.remove();
+  tile.animate([{transform:`translate(${dx*40}%,${dy*40}%) scale(${dx?1.35:.75},${dy?1.35:.75})`,opacity:.3},{transform:'scale(1.08)',opacity:1,offset:.6},{transform:'none',opacity:1}],{duration:230,easing:'ease-out'});
+  dust(c,dx,dy);
+}
+function dust(c,dx,dy){
+  const a=c.getBoundingClientRect(),b=tableWrap.getBoundingClientRect();
+  const x=a.left-b.left+a.width/2+dx*a.width*0.5,y=a.top-b.top+a.height/2+dy*a.height*0.5;
+  for(let k=0;k<3;k++){const p=document.createElement('div');p.className='frag';p.style.left=x+'px';p.style.top=y+'px';p.style.background='rgba(255,250,235,.9)';
+    const ang=Math.random()*Math.PI*2,dist=6+Math.random()*10;
+    p.animate([{transform:'translate(0,0)',opacity:1},{transform:`translate(${Math.cos(ang)*dist+dx*8}px,${Math.sin(ang)*dist+dy*8}px) scale(.3)`,opacity:0}],{duration:320}).onfinish=()=>p.remove();
+    fx.appendChild(p);}
+}
+let comboHide=0;
+function showCombo(n){
+  const el=$('#combo');el.textContent='×'+n;clearTimeout(comboHide);
+  el.style.opacity=1;el.animate([{transform:'translateX(-50%) scale(1.35)'},{transform:'translateX(-50%) scale(1)'}],{duration:120});
+}
+function finishChain(n){
+  G.busy=false;G.best=Math.max(G.best,n);
+  const el=$('#combo');
+  if(n>=12){el.textContent=n>=40?`×${n} 超级连锁！`:n>=25?`×${n} 太爽了！`:`×${n} 漂亮！`;
+    el.animate([{transform:'translateX(-50%) scale(.8)'},{transform:'translateX(-50%) scale(1.2)'},{transform:'translateX(-50%) scale(1)'}],{duration:300});
+    tableWrap.animate([{transform:'translate(0,0)'},{transform:'translate(-3px,2px)'},{transform:'translate(3px,-2px)'},{transform:'translate(0,0)'}],{duration:220});}
+  comboHide=setTimeout(()=>{el.animate([{opacity:1},{opacity:0}],{duration:400}).onfinish=()=>el.style.opacity=0;},n>=12?1100:500);
+  const left=G.present.reduce((s,p,i)=>s+(p&&!G.fallen[i]?1:0),0);
+  if(!left)return win();
+  if(G.used>=G.limit){sBlock();vib([30,40,30]);
+    G.ended=true;$('#game').classList.add('ended');$('#failInfo').textContent=`还有 ${left} 块骨牌站着。试试换个顺序？`;$('#failPanel').classList.add('show');}
+}
+function win(){
+  G.ended=true;done[lvl]=1;store.set('dm_done',done);
+  setTimeout(()=>{sWin();vib([20,60,20,60,40]);
+    G.cells.forEach((c,i)=>{if(!G.present[i])return;const y=Math.floor(i/G.W),x=i%G.W;
+      c.querySelector('.tile').animate([{transform:'scale(1)'},{transform:'scale(1.18) translateY(-8%)',filter:'brightness(1.25)'},{transform:'scale(1)'}],{duration:380,delay:(x+y)*45});});
+    confetti();
+  },200);
+  setTimeout(()=>{
+    $('#lvlName').textContent=`第 ${lvl+1} 关 · ${G.L.name}`;
+    $('#winTitle').textContent=`${G.L.emoji} ${G.L.name}`;
+    $('#winInfo').textContent=`${G.used} 推推倒 ${G.total} 块 · 最长连锁 ×${G.best}`;
+    $('#nextBtn').textContent=lvl<LEVELS.length-1?'下一关 →':'从头再推 ↺';
+    $('#game').classList.add('ended');$('#winPanel').classList.add('show');renderChips();
+  },1100);
+}
+function confetti(){
+  const b=tableWrap.getBoundingClientRect();const cols=Object.values(PAL);
+  for(let k=0;k<40;k++){const p=document.createElement('div');p.className='frag';p.style.width='7px';p.style.height='10px';
+    p.style.left=(Math.random()*b.width)+'px';p.style.top=(b.height)+'px';p.style.background=cols[k%cols.length];
+    p.animate([{transform:'translate(0,0) rotate(0)',opacity:1},{transform:`translate(${(Math.random()-.5)*80}px,${-b.height*(0.6+Math.random()*0.6)}px) rotate(${Math.random()*720}deg)`,opacity:0}],{duration:1100+Math.random()*700,easing:'cubic-bezier(.1,.7,.3,1)',delay:Math.random()*300}).onfinish=()=>p.remove();
+    fx.appendChild(p);}
+}
+
+/* ---------- undo / reset / hint ---------- */
+function undo(){
+  if(G.busy||!G.hist.length)return;const h=G.hist.pop();
+  G.cells.forEach((c,i)=>{if(G.present[i]&&G.fallen[i]&&!h.fallen[i]){c.classList.remove('down');
+    c.querySelector('.dom').animate([{transform:'scale(.4)',opacity:0},{transform:'scale(1.1)',opacity:1},{transform:'scale(1)'}],{duration:260,delay:Math.random()*120});}});
+  G.fallen=h.fallen;G.used=h.used;G.ended=false;
+  $('#game').classList.remove('ended');$('#failPanel').classList.remove('show');$('#winPanel').classList.remove('show');
+  tone(700,0.08,0.08);updateUI();
+}
+$('#undoBtn').onclick=()=>{ensureAudio();undo();};
+$('#failUndo').onclick=()=>{ensureAudio();undo();};
+$('#resetBtn').onclick=$('#failReset').onclick=()=>{ensureAudio();if(G.busy)return;start(true);};
+$('#againBtn').onclick=()=>start();
+$('#nextBtn').onclick=()=>{lvl=(lvl+1)%LEVELS.length;store.set('dm_lvl',lvl);start();};
+$('#hintBtn').onclick=()=>{
+  ensureAudio();if(G.busy||G.ended||G.hints<=0)return;
+  // replay intended solution prefix; only hint if player is still on that path
+  let f=G.present.map(()=>0);
+  for(let k=0;k<G.used;k++){const [y,x,d]=G.L.sol[k];f=simulate(f,y,x,d).f;}
+  if(f.join('')!==G.fallen.join('')){toast('这条路走不通了，先撤销试试 ↶');return;}
+  G.hints--;updateUI();showHand(G.L.sol[G.used]);
+};
+
+let handEl=null,handAnim=null;
+function showHand([y,x,d]){
+  hideHand();const c=G.cells[y*G.W+x];const a=c.getBoundingClientRect(),b=tableWrap.getBoundingClientRect();
+  handEl=document.createElement('div');handEl.className='hand';handEl.textContent='👆';
+  const cx=a.left-b.left+a.width/2-12,cy=a.top-b.top+a.height/2-6;handEl.style.left=cx+'px';handEl.style.top=cy+'px';
+  const [dy,dx]=DV[d];const dist=G.cs*1.1;
+  handAnim=handEl.animate([{transform:'translate(0,0) scale(1)',opacity:0},{transform:'translate(0,0) scale(.9)',opacity:1,offset:.2},{transform:`translate(${dx*dist}px,${dy*dist}px) scale(.9)`,opacity:1,offset:.7},{transform:`translate(${dx*dist}px,${dy*dist}px)`,opacity:0}],{duration:1300,iterations:Infinity});
+  c.querySelector('.dom').animate([{filter:'brightness(1)'},{filter:'brightness(1.25) drop-shadow(0 0 6px #ffd23f)'},{filter:'brightness(1)'}],{duration:900,iterations:3});
+  fx.appendChild(handEl);
+}
+function hideHand(){if(handEl){handEl.remove();handEl=null;}}
+
+let toastT=0;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1500);}
+$('#mute').textContent=muted?'🔇':'🔊';
+$('#mute').onclick=()=>{muted=!muted;store.set('dm_muted',muted);$('#mute').textContent=muted?'🔇':'🔊';ensureAudio();if(!muted)sClack(3);};
+
+start();
+</script>
+</body>
+</html>
