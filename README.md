@@ -20,11 +20,12 @@
 
 ## 工程目录
 
+* `design/`：全套游戏 UI 设计图与切图素材库（[`ui-screens/`](design/ui-screens/) 严格按图 1 星夜暖木风格输出的 10 张全页面设计图、[`ui-assets/`](design/ui-assets/) 8 份独立透明切图与商店图标/分享封面素材，详见 [`design/README.md`](design/README.md)）
 * `minigame/`：微信小游戏原生工程（`src/core/` 零依赖连锁与排行榜核心、`src/renderer/` 选关画廊/局内/排行榜五层 Canvas 2D 渲染器、`src/audio/` 四音色 G 调五声音阶合成器、`src/platform/wx-adapter.js` 微信适配层、`openDataContext/index.js` 微信好友排行榜开放数据域、`levels/levels_001_020.json` 首发 20 关数据）
 * `preview/`：本地 Web 预览壳（`index.html` + `web-adapter.js` + `serve.mjs`）
 * `types/`：外置 TypeScript 类型契约（`domain.d.ts` / `platform.d.ts` / `wx-minigame.d.ts`）
 * `tests/`：Node 22 原生单测（覆盖 E01～E10 边界、双备份存档、排行榜计分排序与 20 关通关闭环）
-* `tools/`：离线验证工具（`verify-levels.mjs`、`verify-minigame.mjs`）
+* `tools/`：离线验证与设计图导出工具（`verify-levels.mjs`、`verify-minigame.mjs`、`render-ui-design.mjs`）
 
 ## 文档索引
 
