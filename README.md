@@ -1,8 +1,30 @@
 # 《推倒一幅画》
 
-微信 / 小红书轻量小游戏立项策划与设计文档仓库。
+微信 / 小红书轻量小游戏原生工程与全套策划/技术文档仓库（`v1.0.0` 首发 20 关）。
 
 核心玩法为**竖屏单指多米诺连锁推倒像素画**：按住一块骨牌朝指定方向轻滑，借助转向牌、分岔牌与「已倒即挡」规则规划路线与顺序，在最少推力内连锁推倒整幅像素画。
+
+## 快速运行与验收
+
+* **微信开发者工具**：直接导入 [`minigame/`](minigame/) 目录即可预览、真机调试与上传（纯原生 ES Module + Canvas 2D，主包约 `123 KB`，零构建依赖）。
+* **本地浏览器预览**（加载同一份 `minigame/src/` 源码）：
+  ```bash
+  npm run preview
+  # 打开 http://127.0.0.1:4173/preview/index.html
+  ```
+* **四级自动化门禁**（L1 静态类型 + L2 核心与 E01～E10 单测 + L3 全 20 关紧界验证 + L4 微信包扫描）：
+  ```bash
+  npm install
+  npm run verify:all
+  ```
+
+## 工程目录
+
+* `minigame/`：微信小游戏原生工程（`src/core/` 零依赖连锁核心、`src/renderer/` 五层 Canvas 2D 渲染器、`src/audio/` 四音色 G 调五声音阶合成器、`src/platform/wx-adapter.js` 微信适配层、`levels/levels_001_020.json` 首发 20 关数据）
+* `preview/`：本地 Web 预览壳（`index.html` + `web-adapter.js` + `serve.mjs`）
+* `types/`：外置 TypeScript 类型契约（`domain.d.ts` / `platform.d.ts` / `wx-minigame.d.ts`）
+* `tests/`：Node 22 原生单测（覆盖 E01～E10 边界、双备份存档与 20 关通关闭环）
+* `tools/`：离线验证工具（`verify-levels.mjs`、`verify-minigame.mjs`）
 
 ## 文档索引
 
@@ -17,6 +39,6 @@
 | `06` | [像素画与骨牌渲染实现方案](docs/06_《推倒一幅画》像素画与骨牌渲染实现方案_v0.1.0.md) | `v0.1.0` |
 | `07` | [首发 20 关关卡设计蓝图](docs/07_《推倒一幅画》首发20关关卡设计蓝图_v0.1.0.md) | `v0.1.0` |
 
-## 可玩原型
+## 早期原型
 
-- [多米诺连锁可玩 Demo](demo/domino_pixel_demo.html)（单文件 HTML5，浏览器直接打开即可试玩，含 6 关经最少推力验证的关卡与合成音效）
+- [多米诺连锁早期原型](demo/domino_pixel_demo.html)（立项期 6 关单文件 HTML5 原型）

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>推倒一幅画 · 预览</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f3e6d0; }
+    canvas { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script type="module">
+    import { bootstrap } from '../minigame/src/main.js';
+    import { WebPreviewAdapter } from './web-adapter.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const adapter = new WebPreviewAdapter(canvas, '../minigame/');
+    bootstrap(adapter).then(app => {
+      window.__APP__ = app; // exposed for automated visual/playtest verification
+    });
+  </script>
+</body>
+</html>

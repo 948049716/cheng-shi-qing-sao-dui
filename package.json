@@ -1,0 +1,18 @@
+{
+  "name": "tui-dao-yi-fu-hua",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "《推倒一幅画》微信小游戏原生工程（v1.0.0 首发 20 关）",
+  "scripts": {
+    "check:types": "tsc -p jsconfig.json --noEmit",
+    "test:core": "node --test tests/*.test.mjs",
+    "verify:levels": "node tools/verify-levels.mjs",
+    "verify:wx": "node tools/verify-minigame.mjs",
+    "verify:all": "npm run check:types && npm run test:core && npm run verify:levels && npm run verify:wx",
+    "preview": "node preview/serve.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

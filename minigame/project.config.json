@@ -1,0 +1,19 @@
+{
+  "description": "《推倒一幅画》微信小游戏原生工程",
+  "appid": "touristappid",
+  "projectname": "tui-dao-yi-fu-hua",
+  "compileType": "game",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "minified": true,
+    "uglifyFileName": false,
+    "postcss": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {}
+}
