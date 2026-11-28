@@ -18,7 +18,12 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
-  const rel = urlPath === '/' ? 'preview/index.html' : urlPath.replace(/^\/+/, '');
+  if (urlPath === '/' || urlPath === '/preview' || urlPath === '/preview/') {
+    res.writeHead(302, { Location: '/preview/index.html' });
+    res.end();
+    return;
+  }
+  const rel = urlPath.replace(/^\/+/, '');
   const full = path.resolve(ROOT, rel);
   if (!full.startsWith(ROOT) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
     res.writeHead(404);
@@ -30,6 +35,6 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(full).pipe(res);
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Preview server running at http://127.0.0.1:${PORT}/preview/index.html`);
+server.listen(PORT, () => {
+  console.log(`Preview server running at http://localhost:${PORT}/preview/index.html`);
 });
